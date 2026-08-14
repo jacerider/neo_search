@@ -1,0 +1,39 @@
+services:
+  neo_search.settings:
+    parent: neo_settings.repository
+    arguments: ['neo_search']
+
+  plugin.manager.neo_search:
+    class: Drupal\neo_search\NeoSearchPluginManager
+    parent: default_plugin_manager
+
+  neo_search.runner:
+    class: Drupal\neo_search\SearchRunner
+    arguments:
+      - '@neo_search.settings'
+      - '@plugin.manager.neo_search'
+      - '@event_dispatcher'
+      - '@cache.neo_search'
+      - '@cache_contexts_manager'
+      - '@flood'
+      - '@renderer'
+      - '@entity_type.manager'
+      - '@entity_type.bundle.info'
+      - '@language_manager'
+      - '@current_user'
+      - '%cache_contexts%'
+
+  neo_search.setup:
+    class: Drupal\neo_search\SearchSetup
+    arguments:
+      - '@entity_type.manager'
+      - '@entity_field.manager'
+      - '@module_handler'
+      - '@extension.list.module'
+
+  cache.neo_search:
+    class: Drupal\Core\Cache\CacheBackendInterface
+    tags:
+      - { name: cache.bin }
+    factory: ['@cache_factory', 'get']
+    arguments: [neo_search]

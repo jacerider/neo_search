@@ -1,0 +1,13 @@
+name: 'Neo | Search'
+type: module
+neo: true
+description: 'Configurable quick search / typeahead bound to text inputs.'
+package: Neo
+version: 0.0.0
+core_version_requirement: ^10.3 || ^11
+dependencies:
+  - drupal:views
+  - search_api:search_api
+  - neo:neo
+  - neo_settings:neo_settings
+  - neo_alchemist:neo_alchemist

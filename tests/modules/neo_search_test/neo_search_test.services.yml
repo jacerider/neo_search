@@ -1,0 +1,5 @@
+services:
+  neo_search_test.subscriber:
+    class: Drupal\neo_search_test\EventSubscriber\NeoSearchTestSubscriber
+    tags:
+      - { name: event_subscriber }

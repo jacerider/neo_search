@@ -1,0 +1,31 @@
+selectors: ''
+plugin: entity_label
+plugin_settings: {}
+limit: 12
+group_by: none
+group_limit: 5
+groups: []
+groups_other: visible
+display: list
+columns: 3
+panel_anchor: ''
+min_chars: 3
+max_chars: 128
+debounce: 200
+breakpoint: ''
+render_items: false
+view_modes: {}
+all_results_type: none
+all_results_url: ''
+all_results_view: ''
+all_results_min: 0
+empty_message: 'No results found.'
+results_label: 'Showing results for "[query]"'
+all_results_label: 'View all results'
+flood_enabled: true
+flood_threshold: 60
+flood_window: 60
+http_max_age: 300
+cache_contexts:
+  - 'user.permissions'
+  - 'user.node_grants:view'

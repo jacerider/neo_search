@@ -1,0 +1,172 @@
+neo_search.settings:
+  type: neo_search
+  mapping:
+    _core:
+      # This only exists for merging configuration; it's not required.
+      requiredKey: false
+      type: _core_config_info
+
+neo_settings.settings.neo_search:
+  type: neo_search
+
+neo_search:
+  type: mapping
+  label: 'Neo Search settings'
+  mapping:
+    selectors:
+      type: string
+      label: 'Input selectors'
+    plugin:
+      type: string
+      label: 'Search plugin'
+    plugin_settings:
+      type: neo_search.plugin.[%parent.plugin]
+      label: 'Search plugin settings'
+    limit:
+      type: integer
+      label: 'Maximum results'
+    group_by:
+      type: string
+      label: 'Group results by'
+    group_limit:
+      type: integer
+      label: 'Maximum results per group'
+    groups:
+      type: sequence
+      label: 'Group overrides'
+      sequence:
+        type: mapping
+        mapping:
+          id:
+            type: string
+            label: 'Group id'
+          label:
+            type: label
+            label: 'Group label'
+          map:
+            type: sequence
+            label: 'Mapped source keys'
+            sequence:
+              type: string
+          weight:
+            type: integer
+            label: 'Weight'
+          hidden:
+            type: boolean
+            label: 'Hidden'
+    groups_other:
+      type: string
+      label: 'Unmapped group behavior'
+    display:
+      type: string
+      label: 'Display style'
+    columns:
+      type: integer
+      label: 'Card columns'
+    panel_anchor:
+      type: string
+      label: 'Panel anchor selector'
+    min_chars:
+      type: integer
+      label: 'Minimum characters'
+    max_chars:
+      type: integer
+      label: 'Maximum characters'
+    debounce:
+      type: integer
+      label: 'Debounce (ms)'
+    breakpoint:
+      type: string
+      label: 'Media query breakpoint'
+    render_items:
+      type: boolean
+      label: 'Render items via view modes'
+    view_modes:
+      type: sequence
+      label: 'View modes per entity type'
+      sequence:
+        type: string
+    all_results_type:
+      type: string
+      label: 'All results link type'
+    all_results_url:
+      type: string
+      label: 'All results URL'
+    all_results_view:
+      type: string
+      label: 'All results view'
+    all_results_min:
+      type: integer
+      label: 'All results link threshold'
+    empty_message:
+      type: label
+      label: 'Empty message'
+    results_label:
+      type: label
+      label: 'Results label'
+    all_results_label:
+      type: label
+      label: 'All results label'
+    flood_enabled:
+      type: boolean
+      label: 'Flood control enabled'
+    flood_threshold:
+      type: integer
+      label: 'Flood threshold'
+    flood_window:
+      type: integer
+      label: 'Flood window (seconds)'
+    http_max_age:
+      type: integer
+      label: 'Browser/proxy max age (seconds)'
+    cache_contexts:
+      type: sequence
+      label: 'Cache contexts'
+      sequence:
+        type: string
+
+neo_search.plugin.*:
+  type: ignore
+  label: 'Search plugin settings'
+
+neo_search.plugin.entity_label:
+  type: mapping
+  label: 'Entity label search settings'
+  mapping:
+    entity_type:
+      type: string
+      label: 'Entity type'
+    bundles:
+      type: sequence
+      label: 'Bundles'
+      sequence:
+        type: string
+
+neo_search.plugin.search_api:
+  type: mapping
+  label: 'Search API search settings'
+  mapping:
+    index:
+      type: string
+      label: 'Search API index'
+    fulltext_fields:
+      type: sequence
+      label: 'Fulltext fields'
+      sequence:
+        type: string
+    datasources:
+      type: sequence
+      label: 'Datasources'
+      sequence:
+        type: string
+    bundles:
+      type: sequence
+      label: 'Bundles'
+      sequence:
+        type: string
+    match_mode:
+      type: string
+      label: 'Match mode'
+    highlight:
+      type: boolean
+      label: 'Use highlight excerpts'

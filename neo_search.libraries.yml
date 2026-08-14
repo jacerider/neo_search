@@ -1,0 +1,13 @@
+search:
+  version: VERSION
+  neo:
+    scope: front
+  css:
+    component:
+      src/css/search.css: {}
+  js:
+    src/js/search.ts: {}
+  dependencies:
+    - core/drupal
+    - core/drupalSettings
+    - core/once

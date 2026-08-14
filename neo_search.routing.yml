@@ -1,0 +1,9 @@
+neo_search.query:
+  path: '/api/neo/search/{variation}'
+  defaults:
+    _controller: '\Drupal\neo_search\Controller\SearchController'
+    _title: 'Quick search'
+    _format: json
+  requirements:
+    _permission: 'use neo_search'
+    variation: '[a-z0-9_]+'

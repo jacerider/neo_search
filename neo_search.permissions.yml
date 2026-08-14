@@ -1,0 +1,6 @@
+administer neo_search:
+  title: 'Administer Neo Search'
+  restrict access: true
+use neo_search:
+  title: 'Use Neo Search quick search'
+  description: 'Query the quick search endpoint. Results are always access-checked per user regardless of this permission.'

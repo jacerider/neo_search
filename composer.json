@@ -1,0 +1,26 @@
+{
+  "name": "jacerider/neo_search",
+  "description": "Configurable quick search / typeahead bound to text inputs.",
+  "type": "drupal-module",
+  "license": "proprietary",
+  "homepage": "https://github.com/jacerider/neo_search",
+  "authors": [
+    {
+      "name": "Cyle Carlson (JaceRider)",
+      "email": "jacerider@gmail.com",
+      "role": "Maintainer"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/jacerider/neo_search/issues",
+    "source": "https://github.com/jacerider/neo_search"
+  },
+  "minimum-stability": "dev",
+  "require": {
+    "drupal/core": "^10.3 || ^11",
+    "drupal/search_api": "^1",
+    "jacerider/neo": "^1",
+    "jacerider/neo_settings": "^1",
+    "jacerider/neo_alchemist": "^1"
+  }
+}
