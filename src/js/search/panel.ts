@@ -1,4 +1,4 @@
-import type { NeoSearchConfig, NeoSearchEnvelope, NeoSearchItem } from './types';
+import type { NeoSearchConfig, NeoSearchEnvelope } from './types';
 
 /**
  * The results panel: DOM building, placement, and option bookkeeping.
@@ -149,127 +149,32 @@ export default class NeoSearchPanel {
 
   /**
    * Renders an envelope into the panel.
+   *
+   * The body is built server-side by the search_quick component — layout,
+   * grouping and every class live in that twig, not here. All this has to do is
+   * inject it and take ownership of the option bookkeeping the component cannot
+   * do: ids have to be minted client-side because one cached fragment may be
+   * injected into more than one panel on the page.
    */
   render(envelope: NeoSearchEnvelope): void {
     this.ensureElement();
     this.hideLoading();
     const listbox = this.listbox as HTMLElement;
-    listbox.textContent = '';
-    this.options = [];
+    // Server-rendered by Drupal's render pipeline; trusted.
+    listbox.innerHTML = envelope.html || '';
 
-    if (this.config.display === 'cards' && envelope.resultsLabel) {
-      const label = document.createElement('div');
-      label.className = 'neo-search-panel__query';
-      label.setAttribute('role', 'presentation');
-      label.textContent = envelope.resultsLabel;
-      listbox.appendChild(label);
-    }
-
-    if (envelope.empty) {
-      const empty = document.createElement('div');
-      empty.className = 'neo-search-panel__empty';
-      empty.setAttribute('role', 'presentation');
-      empty.textContent = envelope.emptyMessage || '';
-      listbox.appendChild(empty);
-    }
-    else if (this.config.display === 'cards') {
-      const grid = document.createElement('div');
-      grid.className = 'neo-search-panel__grid';
-      grid.style.setProperty('--neo-search-columns', String(this.config.columns));
-      envelope.groups.forEach((group) => {
-        const card = document.createElement('div');
-        card.className = 'neo-search-panel__group';
-        card.setAttribute('role', 'group');
-        if (group.label) {
-          const heading = document.createElement('div');
-          heading.className = 'neo-search-panel__group-title';
-          heading.id = `${this.id}-group-${group.id}`;
-          heading.textContent = group.label;
-          card.appendChild(heading);
-          card.setAttribute('aria-labelledby', heading.id);
-        }
-        const list = document.createElement('ul');
-        list.className = 'neo-search-panel__items';
-        group.items.forEach((item) => list.appendChild(this.buildItem(item)));
-        card.appendChild(list);
-        grid.appendChild(card);
-      });
-      listbox.appendChild(grid);
-    }
-    else {
-      envelope.groups.forEach((group) => {
-        if (group.label) {
-          const heading = document.createElement('div');
-          heading.className = 'neo-search-panel__group-title';
-          heading.setAttribute('role', 'presentation');
-          heading.textContent = group.label;
-          listbox.appendChild(heading);
-        }
-        const list = document.createElement('ul');
-        list.className = 'neo-search-panel__items';
-        group.items.forEach((item) => list.appendChild(this.buildItem(item)));
-        listbox.appendChild(list);
-      });
-    }
-
-    if (envelope.allResultsUrl) {
-      const all = document.createElement('a');
-      all.className = 'neo-search-panel__all';
-      all.href = envelope.allResultsUrl;
-      all.id = `${this.id}-option-${this.options.length}`;
-      all.setAttribute('role', 'option');
-      all.setAttribute('aria-selected', 'false');
-      all.textContent = this.config.texts.allResults || Drupal.t('View all results');
-      this.options.push(all);
-      listbox.appendChild(all);
-    }
+    this.options = Array.from(listbox.querySelectorAll<HTMLElement>('[role="option"]'));
+    this.options.forEach((option, index) => {
+      option.id = `${this.id}-option-${index}`;
+      option.setAttribute('aria-selected', 'false');
+      option.tabIndex = -1;
+    });
 
     if (this.announcer) {
       this.announcer.textContent = envelope.empty
         ? (envelope.emptyMessage || '')
         : Drupal.formatPlural(envelope.total, '1 result available', '@count results available');
     }
-  }
-
-  /**
-   * Builds a single result option.
-   */
-  protected buildItem(item: NeoSearchItem): HTMLElement {
-    const li = document.createElement('li');
-    li.className = 'neo-search-panel__item';
-    li.setAttribute('role', 'presentation');
-    const link = document.createElement('a');
-    link.href = item.url;
-    link.id = `${this.id}-option-${this.options.length}`;
-    link.setAttribute('role', 'option');
-    link.setAttribute('aria-selected', 'false');
-    link.tabIndex = -1;
-    if (item.rendered) {
-      // Server-rendered by Drupal's render pipeline; trusted.
-      link.innerHTML = item.rendered;
-    }
-    else {
-      const label = document.createElement('span');
-      label.className = 'neo-search-panel__item-label';
-      label.textContent = item.label;
-      link.appendChild(label);
-      if (item.typeLabel && this.config.display === 'list') {
-        const type = document.createElement('span');
-        type.className = 'neo-search-panel__item-type';
-        type.textContent = item.typeLabel;
-        link.appendChild(type);
-      }
-      if (item.excerpt) {
-        const excerpt = document.createElement('span');
-        excerpt.className = 'neo-search-panel__item-excerpt';
-        // Server-sanitized (mark/strong/em only); trusted.
-        excerpt.innerHTML = item.excerpt;
-        link.appendChild(excerpt);
-      }
-    }
-    this.options.push(link);
-    li.appendChild(link);
-    return li;
   }
 
   /**

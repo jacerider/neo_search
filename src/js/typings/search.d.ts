@@ -32,13 +32,11 @@ declare namespace drupal {
         endpoint: string;
         selectors: string[];
         display: 'list' | 'cards';
-        columns: number;
         panelAnchor: string;
         minChars: number;
         maxChars: number;
         debounce: number;
         breakpoint: string;
-        texts: { allResults: string };
       }>;
     };
 

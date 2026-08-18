@@ -21,6 +21,9 @@ services:
       - '@entity_type.bundle.info'
       - '@language_manager'
       - '@current_user'
+      - '@plugin.manager.sdc'
+      - '@theme.manager'
+      - '@logger.channel.neo_search'
       - '%cache_contexts%'
 
   neo_search.setup:
@@ -30,6 +33,10 @@ services:
       - '@entity_field.manager'
       - '@module_handler'
       - '@extension.list.module'
+
+  logger.channel.neo_search:
+    parent: logger.channel_base
+    arguments: ['neo_search']
 
   cache.neo_search:
     class: Drupal\Core\Cache\CacheBackendInterface

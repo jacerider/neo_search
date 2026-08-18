@@ -5,6 +5,7 @@
  * Provides configurable quick search bound to text inputs.
  */
 
+use Drupal\neo_search\SearchRunner;
 use Drupal\Core\Url;
 
 /**
@@ -38,21 +39,57 @@ function neo_search_page_attachments(array &$attachments) {
     $variations[$id] = [
       'endpoint' => Url::fromRoute('neo_search.query', ['variation' => $id])->toString(),
       'selectors' => $selectors,
+      // Behavior only. Everything that shapes the results markup — columns, the
+      // all-results label — is a prop on the server-rendered search_quick
+      // component, so it never reaches drupalSettings.
       'display' => $settings->getValue('display'),
-      'columns' => (int) $settings->getValue('columns'),
       'panelAnchor' => (string) $settings->getValue('panel_anchor'),
       'minChars' => (int) $settings->getValue('min_chars'),
       'maxChars' => (int) $settings->getValue('max_chars'),
       'debounce' => (int) $settings->getValue('debounce'),
       'breakpoint' => (string) $settings->getValue('breakpoint'),
-      'texts' => [
-        'allResults' => (string) $settings->getValue('all_results_label'),
-      ],
     ];
   }
 
   if ($variations) {
     $attachments['#attached']['library'][] = 'neo_search/search';
     $attachments['#attached']['drupalSettings']['neoSearch']['variations'] = $variations;
+  }
+}
+
+/**
+ * Implements hook_themes_installed().
+ *
+ * Points the panel at the theme's copy of search_quick once there is one.
+ * neo_alchemist ejects the component (both modules listen on this hook, and its
+ * installer is idempotent, so calling it here removes any dependence on which
+ * module's implementation runs first).
+ */
+function neo_search_themes_installed($theme_list) {
+  neo_search_claim_theme_component();
+}
+
+/**
+ * Repoints the base settings at the front theme's search_quick copy.
+ *
+ * Only ever upgrades the shipped default. A site builder who has chosen a
+ * component — or a saved component — keeps their choice; this is what makes the
+ * function safe to call from more than one hook.
+ */
+function neo_search_claim_theme_component() {
+  /** @var \Drupal\neo_alchemist\ThemeComponentInstaller $installer */
+  $installer = \Drupal::service('neo_alchemist.theme_component_installer');
+  $installer->installAll();
+  $theme = $installer->resolveTheme();
+  if (!$theme) {
+    return;
+  }
+  $config = \Drupal::configFactory()->getEditable('neo_search.settings');
+  if ($config->get('component') !== SearchRunner::DEFAULT_COMPONENT) {
+    return;
+  }
+  $id = $theme . ':search_quick';
+  if (\Drupal::service('plugin.manager.sdc')->hasDefinition($id)) {
+    $config->set('component', $id)->save();
   }
 }

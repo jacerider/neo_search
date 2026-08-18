@@ -1,0 +1,136 @@
+$schema: 'https://git.drupalcode.org/project/drupal/-/raw/10.1.x/core/modules/sdc/src/metadata.schema.json'
+name: 'Search | Quick'
+status: stable
+description: 'The quick-search typeahead panel body: grouped results, an optional results label, the empty message and the all-results link. Rendered server-side by SearchRunner and injected into the panel by neo_search''s JS.'
+# Source template. `neo: false` keeps this module copy out of the component
+# picker; `neo_install: true` has neo_alchemist copy it into the front theme on
+# install, flipping the copy to `neo: true`. The theme copy is the one you
+# preview, back with a neo_component entity, and restyle.
+#
+# Unlike search_list this copy stays renderable: SearchRunner falls back to it
+# when the configured component is missing, so the quick search survives a
+# deleted theme copy.
+neo: false
+neo_install: true
+props:
+  type: object
+  properties:
+    scheme:
+      type: scheme
+      title: 'Color scheme'
+      description: 'Recolors the whole panel. Every color utility inside re-scopes to the chosen scheme, so a dark mega-panel needs no per-element classes.'
+      apply: true
+      examples: default
+    display:
+      type: string
+      title: 'Display style'
+      description: 'The variation''s display setting. "list" is a narrow dropdown anchored to the input; "cards" is a full-width panel of grouped columns.'
+      enum: [list, cards]
+      examples: [list]
+    columns:
+      type: integer
+      title: 'Card columns'
+      description: 'Column count for the cards display, applied as the --neo-search-columns custom property.'
+      examples: [3]
+    query:
+      type: string
+      title: 'Query'
+      description: 'The normalized search text the results are for.'
+      examples: ['water']
+    total:
+      type: integer
+      title: 'Result count'
+      description: 'Total results across all groups, after per-group limits.'
+      examples: [3]
+    empty:
+      type: boolean
+      title: 'Empty'
+      description: 'TRUE when there are no results. Prefer this over groups|length — it is what the server considers empty.'
+      examples: [false]
+    results_label:
+      type: [string, 'null']
+      title: 'Results label'
+      description: 'Configured label shown above card results, with [query] already substituted. NULL when there are no results or the setting is empty.'
+      examples: ['Results for water']
+    empty_message:
+      type: [string, 'null']
+      title: 'Empty message'
+      description: 'Configured no-results message. Only set when `empty` is TRUE.'
+      examples: ['No results found.']
+    all_results_url:
+      type: [string, 'null']
+      title: 'All results URL'
+      description: 'Link to the full search page. NULL when not configured or when the minimum result threshold is not met.'
+      examples: ['/search?s=water']
+    all_results_label:
+      type: string
+      title: 'All results label'
+      description: 'Configured link text for the all-results link.'
+      examples: ['View all results']
+    groups:
+      type: array
+      title: 'Result groups'
+      description: 'Ordered result groups. A group''s label is empty when grouping is off — render the items without a heading in that case.'
+      examples:
+        -
+          id: 'page'
+          label: 'Pages'
+          items:
+            - { id: 'node:1', label: 'Water Reclamation Facility Expansion', url: '/water-reclamation', entity_type: 'node', bundle: 'page', type_label: 'Page', excerpt: '… the <mark>water</mark> reclamation facility serves …', rendered: null, extra: {} }
+            - { id: 'node:2', label: 'Designing for Resilient Water Systems', url: '/resilient-water', entity_type: 'node', bundle: 'page', type_label: 'Page', excerpt: '… resilient <mark>water</mark> systems start with …', rendered: null, extra: {} }
+      items:
+        type: object
+        title: 'Group'
+        properties:
+          id:
+            type: string
+            title: 'Group id'
+            description: 'Machine id — the configured override id, the bundle/entity-type key, or "results" when ungrouped.'
+          label:
+            type: string
+            title: 'Group label'
+            description: 'Human label. Empty string when grouping is off.'
+          items:
+            type: array
+            title: 'Results'
+            items:
+              type: object
+              title: 'Result'
+              properties:
+                id:
+                  type: string
+                  title: 'Result id'
+                  description: 'Unique within the result set, e.g. "node:12".'
+                label:
+                  type: string
+                  title: 'Label'
+                  description: 'Plain text — autoescaped. Never mark it |raw.'
+                url:
+                  type: string
+                  title: 'URL'
+                  description: 'Required on the option element: the JS reads href to navigate.'
+                entity_type:
+                  type: [string, 'null']
+                  title: 'Entity type id'
+                bundle:
+                  type: [string, 'null']
+                  title: 'Bundle'
+                type_label:
+                  type: [string, 'null']
+                  title: 'Type label'
+                  description: 'Human-readable bundle label, e.g. "Article".'
+                excerpt:
+                  type: [string, 'null']
+                  title: 'Excerpt'
+                  description: 'Pre-sanitized highlight snippet (mark/strong/em only), passed as Markup — prints unescaped without |raw.'
+                rendered:
+                  type: [string, 'null']
+                  title: 'Rendered entity'
+                  description: 'The entity rendered in its configured view mode, when "Render items with view modes" is on. Passed as Markup. Use it in place of the label/type/excerpt trio when present.'
+                extra:
+                  # Both types are load-bearing: schema validation JSON-encodes
+                  # the props, and an empty PHP array encodes to [] rather than
+                  # {} — object alone would fail on every item without extras.
+                  type: [object, array]
+                  title: 'Extra data'
+                  description: 'Arbitrary per-item data set by a search plugin or a NeoSearchResultsEvent subscriber.'

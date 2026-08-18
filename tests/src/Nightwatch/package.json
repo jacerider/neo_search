@@ -1,0 +1,4 @@
+{
+  "//": "Scopes this directory back to CommonJS. See neo_build/tests/Nightwatch/package.json -- a project root with \"type\": \"module\" otherwise makes Node load these as ES modules and module.exports fails.",
+  "type": "commonjs"
+}

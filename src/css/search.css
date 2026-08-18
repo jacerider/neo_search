@@ -1,3 +1,12 @@
+/*
+ * The quick-search panel shell.
+ *
+ * Only the JS-owned chrome lives here: the positioned wrapper, the listbox
+ * host and the loading states. Everything inside the listbox comes from the
+ * search_quick SDC (components/search_quick, or your theme's ejected copy) and
+ * is styled with Tailwind utilities in that twig — not from this file.
+ */
+
 @layer base {
   :root {
     --neo-search-z: 500;
@@ -19,100 +28,10 @@
 .neo-search-panel--cards {
   @apply border-x-0;
   /* Full-width placement respects fixed UI (admin toolbar, off-canvas) via
-     Drupal's displacement variables; JS only sets `top`. */
+     Drupal's displacement variables; JS only sets `top`. The cards-mode inner
+     padding lives on the component root, not here. */
   left: var(--drupal-displace-offset-left, 0px);
   right: var(--drupal-displace-offset-right, 0px);
-}
-
-.neo-search-panel--cards .neo-search-panel__listbox {
-  @apply mx-auto max-w-7xl px-6 py-8;
-}
-
-.neo-search-panel__query {
-  @apply text-sm text-base-600 mb-4;
-}
-
-.neo-search-panel__grid {
-  @apply grid gap-6;
-  grid-template-columns: repeat(var(--neo-search-columns, 3), minmax(0, 1fr));
-}
-
-@media (max-width: 767px) {
-  .neo-search-panel__grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.neo-search-panel__group-title {
-  @apply text-xs font-semibold uppercase tracking-wide text-base-600 mb-2;
-}
-
-.neo-search-panel--list .neo-search-panel__group-title {
-  @apply px-4 pt-3 mb-0;
-}
-
-.neo-search-panel__items {
-  @apply list-none m-0 p-0;
-}
-
-.neo-search-panel__item a {
-  @apply block no-underline text-default;
-}
-
-.neo-search-panel--list .neo-search-panel__item a {
-  @apply px-4 py-2;
-}
-
-.neo-search-panel--cards .neo-search-panel__item a {
-  @apply py-1.5;
-}
-
-.neo-search-panel__item a:hover,
-.neo-search-panel__item a.is-active {
-  @apply text-primary;
-}
-
-.neo-search-panel--list .neo-search-panel__item a:hover,
-.neo-search-panel--list .neo-search-panel__item a.is-active {
-  @apply bg-base-100;
-}
-
-.neo-search-panel__item-label {
-  @apply block font-medium;
-}
-
-.neo-search-panel__item-type {
-  @apply block text-xs text-base-600;
-}
-
-.neo-search-panel__item-excerpt {
-  @apply block text-sm text-base-600 mt-0.5;
-}
-
-.neo-search-panel__item-excerpt mark,
-.neo-search-panel__item-excerpt strong {
-  @apply font-semibold text-default bg-transparent;
-}
-
-.neo-search-panel__all {
-  @apply block font-medium text-primary no-underline;
-}
-
-.neo-search-panel--list .neo-search-panel__all {
-  @apply px-4 py-3 border-t border-base-200;
-}
-
-.neo-search-panel--cards .neo-search-panel__all {
-  @apply mt-6 pt-4 border-t border-base-200;
-}
-
-.neo-search-panel__all:hover,
-.neo-search-panel__all.is-active {
-  @apply underline;
-}
-
-.neo-search-panel__empty {
-  @apply text-sm text-base-600;
 }
 
 .neo-search-panel__loading {
@@ -138,8 +57,4 @@
 /* Fallback when neo_loader is not installed. */
 .neo-search-panel__spinner {
   @apply size-6 animate-spin rounded-full border-2 border-primary border-t-transparent;
-}
-
-.neo-search-panel--list .neo-search-panel__empty {
-  @apply px-4 py-3;
 }

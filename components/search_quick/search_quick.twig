@@ -1,0 +1,119 @@
+{#
+  Search | Quick — the typeahead panel body.
+
+  Rendered server-side by SearchRunner and injected into the panel's listbox by
+  neo_search's JS. Everything OUTSIDE this markup stays in JS and is styled by
+  neo_search/src/css/search.css: the positioned panel wrapper, the
+  [role=listbox] host, the aria-live announcer and the loading overlay. They are
+  infrastructure, not layout.
+
+  CONTRACT — the JS depends on exactly two things:
+  1. Every selectable row carries role="option" AND an href. After injection
+     panel.ts collects [role="option"] in document order and assigns each an id,
+     aria-selected and tabindex; instance.ts drives them with the arrow keys,
+     toggling `is-active` on the current one and navigating to its href on
+     Enter.
+  2. Rows appear in the order they should be traversed.
+  Break either and keyboard navigation breaks. Wrappers, ordering, extra
+  elements and every class here are otherwise entirely yours.
+
+  Own this file: `drush neo:search:eject search_quick` copies it into your theme.
+  Edits take effect after `drush cr` — the runner caches the rendered HTML in
+  the neo_search bin, so a template change alone will not show up.
+
+  `excerpt` and `rendered` arrive pre-sanitized (Xss::filter down to
+  mark/strong/em, and Drupal's render pipeline respectively) as Markup, so they
+  print unescaped without |raw. `label` is plain text — never mark it |raw.
+
+  Groups use aria-label rather than aria-labelledby: this markup is cached and
+  can be injected into more than one panel on a page, so it must not mint ids.
+  The JS assigns the ids it needs after injection.
+
+  The item markup is a _self macro rather than an include: a bare filename does
+  not resolve against an SDC directory, and macros keep the component to the one
+  twig file SDC discovery expects.
+#}
+{% import _self as ui %}
+
+{% macro items(rows, item_classes, is_cards) %}
+  <ul class="m-0 list-none p-0" role="presentation">
+    {% for item in rows %}
+      <li role="presentation">
+        <a href="{{ item.url }}" role="option" aria-selected="false" class="{{ item_classes }}">
+          {% if item.rendered %}
+            {{ item.rendered }}
+          {% else %}
+            <span class="block font-medium">{{ item.label }}</span>
+            {% if item.type_label and not is_cards %}
+              <span class="block text-xs text-base-600">{{ item.type_label }}</span>
+            {% endif %}
+            {% if item.excerpt %}
+              <span class="mt-0.5 block text-sm text-base-600 [&_mark]:bg-transparent [&_mark]:font-semibold [&_mark]:text-default [&_strong]:bg-transparent [&_strong]:font-semibold [&_strong]:text-default">{{ item.excerpt }}</span>
+            {% endif %}
+          {% endif %}
+        </a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endmacro %}
+
+{% set is_cards = display == 'cards' %}
+{# Active styling hangs off aria-selected, which the JS keeps in sync with the
+   arrow keys, rather than an [&.is-active] arbitrary variant: twig escapes the
+   & inside a {% set %} string to &amp;, which survives in the browser but reads
+   like a bug. The JS also toggles an `is-active` class if you prefer that hook. #}
+{% set item_classes = is_cards
+  ? 'block py-1.5 text-default no-underline hover:text-primary aria-selected:text-primary'
+  : 'block px-4 py-2 text-default no-underline hover:bg-base-100 hover:text-primary aria-selected:bg-base-100 aria-selected:text-primary' %}
+{% set group_title_classes = is_cards
+  ? 'mb-2 text-xs font-semibold uppercase tracking-wide text-base-600'
+  : 'px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-base-600' %}
+
+{# attributes carries the scheme class (and anything a neo_component entity adds),
+   so it must stay on the single root element. #}
+{% set root_classes = is_cards ? ['mx-auto', 'max-w-7xl', 'px-6', 'py-8'] : [] %}
+<div{{ attributes.addClass(root_classes) }}>
+
+  {% if is_cards and results_label %}
+    <div class="mb-4 text-sm text-base-600" role="presentation">{{ results_label }}</div>
+  {% endif %}
+
+  {% if empty %}
+
+    <div class="text-sm text-base-600 {{ not is_cards ? 'px-4 py-3' }}" role="presentation">{{ empty_message }}</div>
+
+  {% elseif is_cards %}
+
+    {# The column count is a runtime setting, so it rides in on a custom
+       property; the arbitrary-property utility keeps the rule compilable.
+       Below md the grid collapses to one column. #}
+    <div class="grid grid-cols-1 gap-6 md:[grid-template-columns:repeat(var(--neo-search-columns,3),minmax(0,1fr))]"
+      style="--neo-search-columns: {{ columns }}" role="presentation">
+      {% for group in groups %}
+        <div role="group"{% if group.label %} aria-label="{{ group.label }}"{% endif %}>
+          {% if group.label %}
+            <div class="{{ group_title_classes }}">{{ group.label }}</div>
+          {% endif %}
+          {{ ui.items(group.items, item_classes, is_cards) }}
+        </div>
+      {% endfor %}
+    </div>
+
+  {% else %}
+
+    {% for group in groups %}
+      {% if group.label %}
+        <div class="{{ group_title_classes }}" role="presentation">{{ group.label }}</div>
+      {% endif %}
+      {{ ui.items(group.items, item_classes, is_cards) }}
+    {% endfor %}
+
+  {% endif %}
+
+  {% if all_results_url %}
+    {% set all_classes = is_cards ? 'mt-6 pt-4' : 'px-4 py-3' %}
+    <a href="{{ all_results_url }}" role="option" aria-selected="false"
+      class="{{ all_classes }} block border-t border-base-200 font-medium text-primary no-underline hover:underline aria-selected:underline">{{ all_results_label }}</a>
+  {% endif %}
+
+</div>

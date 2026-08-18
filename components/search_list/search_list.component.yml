@@ -1,8 +1,13 @@
 $schema: 'https://git.drupalcode.org/project/drupal/-/raw/10.1.x/core/modules/sdc/src/metadata.schema.json'
-name: 'List Search'
+name: 'Search | List'
 status: stable
 description: 'Site search results: a prominent search input above a flat, relevance-ranked list of results — each a type badge, linked title and highlighted excerpt — with an applied-search chip, a live result count and a pager slot.'
-neo: true
+# Source template. `neo: false` keeps this module copy out of the component
+# picker; `neo_install: true` has neo_alchemist copy it into the front theme on
+# install, flipping the copy to `neo: true`. The theme copy is the one editors
+# place and the site restyles — see the neo-component skill.
+neo: false
+neo_install: true
 libraryOverrides:
   dependencies:
     - neo_alchemist/swap

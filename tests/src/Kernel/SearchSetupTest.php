@@ -123,18 +123,19 @@ class SearchSetupTest extends KernelTestBase {
   /**
    * Tests the two-save binding creation.
    *
-   * The SDC comes from the neo_search_test fixture copy — on a real site the
-   * setup command copies install/components/list_search into the theme and
-   * binds "<theme>:list_search" the same way.
+   * Binds the module's own source component. On a real site the theme copy is
+   * ejected at install and the binding names "<theme>:search_list"; the id is
+   * the only difference, so this exercises the same path without needing a
+   * theme.
    */
   public function testEnsureBinding(): void {
-    $result = $this->setupService()->ensureBinding('neo_search_test:list_search', 'search', 's');
+    $result = $this->setupService()->ensureBinding('neo_search:search_list', 'search', 's');
     $this->assertSame('created', $result['status']);
 
     /** @var \Drupal\neo_alchemist\ComponentInterface $component */
-    $component = $this->container->get('entity_type.manager')->getStorage('neo_component')->load('list_search');
+    $component = $this->container->get('entity_type.manager')->getStorage('neo_component')->load('search_list');
     $this->assertNotNull($component);
-    $this->assertSame('neo_search_test:list_search', $component->get('component'));
+    $this->assertSame('neo_search:search_list', $component->get('component'));
     $this->assertNotEmpty($component->get('expression'));
 
     $settings = $component->get('settings');
@@ -152,8 +153,43 @@ class SearchSetupTest extends KernelTestBase {
     $this->assertSame('views_pager', $slotPlugins[0]['plugin'] ?? NULL);
 
     // Second call is a pure no-op.
-    $again = $this->setupService()->ensureBinding('neo_search_test:list_search', 'search', 's');
+    $again = $this->setupService()->ensureBinding('neo_search:search_list', 'search', 's');
     $this->assertSame('exists', $again['status']);
+  }
+
+  /**
+   * Tests that both shipped components opt into the theme eject.
+   *
+   * The copy itself belongs to neo_alchemist and is tested there. What is
+   * neo_search's to get right is the declaration: drop `neo_install` and the
+   * component silently stops reaching themes, and setting `neo: true` on a
+   * source would put a duplicate in every site's component picker. Neither
+   * failure is visible until someone installs the module somewhere new.
+   */
+  public function testComponentsOptIntoTheThemeEject(): void {
+    $definitions = $this->container->get('plugin.manager.sdc')->getDefinitions();
+    foreach (['neo_search:search_quick', 'neo_search:search_list'] as $id) {
+      $this->assertArrayHasKey($id, $definitions, sprintf('%s is not discoverable.', $id));
+      $this->assertTrue(!empty($definitions[$id]['neo_install']), sprintf('%s does not declare neo_install.', $id));
+      $this->assertEmpty($definitions[$id]['neo'] ?? NULL, sprintf('%s is a source template and must declare `neo: false`.', $id));
+      // The flip the installer performs needs a line to act on.
+      $this->assertStringContainsString(
+        'neo: false',
+        (string) file_get_contents($definitions[$id]['path'] . '/' . $definitions[$id]['machineName'] . '.component.yml'),
+        sprintf('%s has no `neo: false` line for the installer to flip.', $id)
+      );
+    }
+  }
+
+  /**
+   * Tests that the variation settings only pin a component when given one.
+   */
+  public function testVariationComponentBinding(): void {
+    $without = $this->setupService()->buildVariationSettings('#site-search', '/search', 's');
+    $this->assertArrayNotHasKey('component', $without);
+
+    $with = $this->setupService()->buildVariationSettings('#site-search', '/search', 's', 'front:search_quick');
+    $this->assertSame('front:search_quick', $with['component']);
   }
 
 }

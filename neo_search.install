@@ -1,0 +1,131 @@
+<?php
+
+/**
+ * @file
+ * Install and update hooks for neo_search.
+ */
+
+use Drupal\Core\Cache\Cache;
+use Drupal\Core\Database\Database;
+
+/**
+ * Implements hook_install().
+ *
+ * Claims the front theme's copy of search_quick as the panel component so the
+ * site is editing its own markup from the start. On a fresh site the theme is
+ * not installed yet and this is a no-op — hook_themes_installed() picks it up
+ * once there is a theme to claim.
+ */
+function neo_search_install($is_syncing) {
+  if ($is_syncing) {
+    return;
+  }
+  neo_search_claim_theme_component();
+}
+
+/**
+ * Renames the list_search component to search_list.
+ *
+ * Three things carry the name and all must move together. The SDC and the
+ * config entity are handled here and by the shipped files; the third is content
+ * data — Alchemist component trees store the component entity id verbatim
+ * ({"uuid":"…","component":"list_search"}) and resolve it with
+ * Component::load(). A miss returns NULL and the instance is skipped silently,
+ * so a half-applied rename leaves the search page rendering an empty layout
+ * with nothing in the logs.
+ */
+function neo_search_update_10001(): string {
+  $connection = Database::getConnection();
+  $messages = [];
+
+  // Every component-tree column, discovered rather than hardcoded: trees live
+  // on whatever entity types a site attached the field to (nodes here, but also
+  // menu links and taxonomy terms elsewhere), and missing one is invisible.
+  $columns = $connection->query("SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND column_name LIKE :suffix", [
+      ':suffix' => '%\_tree',
+    ])->fetchAll();
+
+  $rows = 0;
+  foreach ($columns as $column) {
+    $table = $column->table_name ?? $column->TABLE_NAME;
+    $field = $column->column_name ?? $column->COLUMN_NAME;
+    // Replacing the whole JSON key/value pair keeps this unambiguous: the bare
+    // id could appear inside unrelated prop values.
+    $rows += $connection->update($table)
+      ->expression($field, "REPLACE({$field}, :from, :to)", [
+        ':from' => '"component":"list_search"',
+        ':to' => '"component":"search_list"',
+      ])
+      ->condition($field, '%"component":"list_search"%', 'LIKE')
+      ->execute();
+  }
+  $messages[] = sprintf('Rewrote %d component tree row(s).', $rows);
+
+  // Rename the config entity, preserving the uuid so a later config import
+  // reads this as a rename rather than a delete plus a create.
+  $configFactory = \Drupal::configFactory();
+  $old = $configFactory->getEditable('neo_alchemist.neo_component.list_search');
+  if (!$old->isNew()) {
+    $data = $old->getRawData();
+    $data['id'] = 'search_list';
+    if (isset($data['component'])) {
+      $data['component'] = str_replace(':list_search', ':search_list', $data['component']);
+    }
+    $configFactory->getEditable('neo_alchemist.neo_component.search_list')
+      ->setData($data)
+      ->save();
+    $old->delete();
+    $messages[] = 'Renamed the list_search component entity to search_list.';
+  }
+  else {
+    $messages[] = 'No list_search component entity to rename.';
+  }
+
+  Cache::invalidateTags(['rendered']);
+  return implode(' ', $messages);
+}
+
+/**
+ * Folds the component_entity setting into component.
+ *
+ * The two were mutually exclusive from the start — the panel renders through a
+ * saved component or a bare one, never both — so they are now one select. An
+ * SDC plugin id is always "provider:name" and a config entity id never contains
+ * a colon, which is enough to tell the two apart without a second key.
+ */
+function neo_search_update_10002(): string {
+  $changed = [];
+  $configFactory = \Drupal::configFactory();
+
+  $names = ['neo_search.settings'];
+  foreach ($configFactory->listAll('neo_settings.variation.') as $name) {
+    $names[] = $name;
+  }
+
+  foreach ($names as $name) {
+    $config = $configFactory->getEditable($name);
+    // Variations nest their values under `settings`; the base config does not.
+    $prefix = str_starts_with($name, 'neo_settings.variation.') ? 'settings.' : '';
+    $entity = $config->get($prefix . 'component_entity');
+    if ($entity === NULL) {
+      continue;
+    }
+    if (is_string($entity) && $entity !== '') {
+      // A saved component was selected, so it wins — that was already the
+      // behaviour, with `component` acting only as its fallback.
+      $config->set($prefix . 'component', $entity);
+      $changed[] = $name;
+    }
+    $config->clear($prefix . 'component_entity')->save();
+  }
+
+  // Claim the theme copy for sites still on the shipped default, which is what
+  // installing the module now does.
+  neo_search_claim_theme_component();
+
+  return $changed
+    ? sprintf('Merged component_entity into component for: %s.', implode(', ', $changed))
+    : 'Removed the unused component_entity setting.';
+}

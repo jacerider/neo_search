@@ -23,8 +23,22 @@ class SearchRunnerTest extends KernelTestBase {
   protected static $modules = [
     'system',
     'user',
+    'field',
+    'text',
+    'filter',
+    'node',
+    // The search_quick component declares a `scheme` prop, an Alchemist shape
+    // backed by a list_string field item. neo_search depends on neo_alchemist
+    // anyway, so a lighter list here would be modelling an install that cannot
+    // exist.
+    'options',
+    'link',
+    'views',
+    'search_api',
     'neo',
     'neo_settings',
+    'neo_color',
+    'neo_alchemist',
     'neo_search',
     'neo_search_test',
   ];
@@ -59,15 +73,76 @@ class SearchRunnerTest extends KernelTestBase {
     $this->assertSame('neo_search', $data['variation']);
     $this->assertSame(2, $data['total']);
     $this->assertFalse($data['empty']);
-    $this->assertCount(1, $data['groups']);
-    $items = $data['groups'][0]['items'];
-    $this->assertSame(['Alpha page', 'Gamma page'], array_column($items, 'label'));
-    $this->assertSame('/node/1', $items[0]['url']);
     $this->assertNull($data['emptyMessage']);
-    $this->assertStringContainsString('page', $data['resultsLabel']);
+    // Per-item data is not on the wire — only the rendered panel.
+    $this->assertArrayNotHasKey('groups', $data);
+    $html = $data['html'];
+    $this->assertStringContainsString('Alpha page', $html);
+    $this->assertStringContainsString('Gamma page', $html);
+    $this->assertStringContainsString('href="/node/1"', $html);
+    // Ordering is the traversal order the keyboard navigation relies on.
+    $this->assertLessThan(strpos($html, 'Gamma page'), strpos($html, 'Alpha page'));
     $this->assertContains('neo_search_test:results', $payload->cacheability->getCacheTags());
     $this->assertContains('neo_search', $payload->cacheability->getCacheTags());
     $this->assertContains('config:neo_search.settings', $payload->cacheability->getCacheTags());
+  }
+
+  /**
+   * Tests the option contract the client-side keyboard navigation relies on.
+   */
+  public function testRenderedOptionsContract(): void {
+    $html = $this->runner()->run('neo_search', 'page')->data['html'];
+    // One role="option" per result, each carrying an href.
+    $this->assertSame(2, substr_count($html, 'role="option"'));
+    preg_match_all('/<a[^>]*role="option"[^>]*>/', $html, $matches);
+    $this->assertCount(2, $matches[0]);
+    foreach ($matches[0] as $tag) {
+      $this->assertStringContainsString('href="', $tag);
+    }
+  }
+
+  /**
+   * Tests that the cards display renders the token-substituted results label.
+   */
+  public function testCardsDisplayResultsLabel(): void {
+    $this->config('neo_search.settings')
+      ->set('display', 'cards')
+      ->set('results_label', 'Showing results for "[query]"')
+      ->save();
+
+    $html = $this->runner()->run('neo_search', 'page')->data['html'];
+    $this->assertStringContainsString('Showing results for &quot;page&quot;', $html);
+    $this->assertStringContainsString('--neo-search-columns', $html);
+  }
+
+  /**
+   * Tests that a missing component falls back to the shipped default.
+   */
+  public function testMissingComponentFallsBack(): void {
+    $this->config('neo_search.settings')
+      ->set('component', 'nope:not_a_component')
+      ->save();
+
+    $html = $this->runner()->run('neo_search', 'page')->data['html'];
+    $this->assertStringContainsString('Alpha page', $html);
+    $this->assertStringContainsString('role="option"', $html);
+  }
+
+  /**
+   * Tests that a missing component entity falls back to the raw component.
+   *
+   * The entity is config a site builder can delete at any time, so the panel
+   * has to survive it pointing at nothing.
+   */
+  public function testMissingComponentEntityFallsBack(): void {
+    // No colon: the setting names a saved component, and that one is gone.
+    $this->config('neo_search.settings')
+      ->set('component', 'gone')
+      ->save();
+
+    $html = $this->runner()->run('neo_search', 'page')->data['html'];
+    $this->assertStringContainsString('Alpha page', $html);
+    $this->assertStringContainsString('role="option"', $html);
   }
 
   /**
@@ -99,10 +174,13 @@ class SearchRunnerTest extends KernelTestBase {
     $payload = $this->runner()->run('neo_search', 'a p');
     $data = $payload->data;
     $this->assertSame(2, $data['total']);
-    $this->assertCount(1, $data['groups']);
-    $this->assertSame('content', $data['groups'][0]['id']);
-    $this->assertSame('Pages & content', $data['groups'][0]['label']);
-    $this->assertSame(['Alpha page', 'Gamma page'], array_column($data['groups'][0]['items'], 'label'));
+    $html = $data['html'];
+    // The group heading is autoescaped by twig.
+    $this->assertStringContainsString('Pages &amp; content', $html);
+    $this->assertStringContainsString('Alpha page', $html);
+    $this->assertStringContainsString('Gamma page', $html);
+    // Mapped into a hidden group — never reaches the markup.
+    $this->assertStringNotContainsString('Delta project', $html);
   }
 
   /**
@@ -127,6 +205,9 @@ class SearchRunnerTest extends KernelTestBase {
     // "eta" matches Beta insight only; insight is unmapped and hidden.
     $this->assertSame(0, $payload->data['total']);
     $this->assertTrue($payload->data['empty']);
+    $this->assertSame('No results found.', $payload->data['emptyMessage']);
+    $this->assertStringContainsString('No results found.', $payload->data['html']);
+    $this->assertStringNotContainsString('role="option"', $payload->data['html']);
   }
 
   /**
@@ -145,11 +226,7 @@ class SearchRunnerTest extends KernelTestBase {
    */
   public function testResultsEventInjection(): void {
     $payload = $this->runner()->run('neo_search', 'inject-me');
-    $data = $payload->data;
-    $groupIds = array_column($data['groups'], 'id');
-    $this->assertContains('injected', $groupIds);
-    $injected = $data['groups'][array_search('injected', $groupIds)];
-    $this->assertSame(['Injected result'], array_column($injected['items'], 'label'));
+    $this->assertStringContainsString('Injected result', $payload->data['html']);
     $this->assertContains('neo_search_test:injected', $payload->cacheability->getCacheTags());
   }
 

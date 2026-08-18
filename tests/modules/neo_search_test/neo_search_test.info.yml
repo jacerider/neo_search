@@ -1,6 +1,6 @@
 name: 'Neo | Search Test'
 type: module
-description: 'Test support for neo_search: a NeoSearch test backend, a results-event subscriber, and a fixture copy of the list_search SDC (kernel tests need it discoverable; the setup command copies the real one into a theme).'
+description: 'Test support for neo_search: a NeoSearch test backend and a results-event subscriber. Deliberately ships no components — the search_list and search_quick sources in neo_search itself are discoverable, so tests bind to those.'
 package: Testing
 hidden: true
 core_version_requirement: ^10.3 || ^11

@@ -89,10 +89,16 @@ export default class NeoSearchInstance {
         this.setActive(this.activeIndex + 1);
         break;
 
-      case 'ArrowUp':
+      case 'ArrowUp': {
         e.preventDefault();
-        this.setActive(this.activeIndex - 1);
+        // activeIndex is -1 while nothing is selected. Stepping straight to -2
+        // would wrap to count - 2 — the second-to-last option — so start from
+        // one past the end instead, which lands on the last as the combobox
+        // pattern expects.
+        const from = this.activeIndex < 0 ? this.panel.options.length : this.activeIndex;
+        this.setActive(from - 1);
         break;
+      }
 
       case 'Enter': {
         const option = this.panel.options[this.activeIndex];

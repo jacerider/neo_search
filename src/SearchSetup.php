@@ -8,7 +8,6 @@ use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Serialization\Yaml;
 
 /**
@@ -100,39 +99,10 @@ class SearchSetup {
   }
 
   /**
-   * Copies the shipped list_search SDC into a theme, shadcn-style.
-   *
-   * The module keeps the canonical source at install/components/list_search
-   * (inert — not discovered as an SDC there); the site's copy is fully
-   * theirs to customize and is never overwritten once present.
-   *
-   * @param string $theme
-   *   The target theme machine name.
-   *
-   * @return string
-   *   'installed' or 'exists'.
-   */
-  public function installComponent(string $theme): string {
-    $themePath = \Drupal::service('extension.list.theme')->getPath($theme);
-    $target = $themePath . '/components/list_search';
-    if (is_dir($target)) {
-      return 'exists';
-    }
-    $source = $this->moduleExtensionList->getPath('neo_search') . '/install/components/list_search';
-    /** @var \Drupal\Core\File\FileSystemInterface $fileSystem */
-    $fileSystem = \Drupal::service('file_system');
-    $fileSystem->prepareDirectory($target, FileSystemInterface::CREATE_DIRECTORY);
-    foreach (glob($source . '/*') as $file) {
-      $fileSystem->copy($file, $target . '/' . basename($file));
-    }
-    return 'installed';
-  }
-
-  /**
-   * Ensures the saved list_search component binding exists and is wired.
+   * Ensures the saved search_list component binding exists and is wired.
    *
    * @param string $sdcId
-   *   The SDC plugin id, e.g. "front:list_search" (theme-owned copy).
+   *   The SDC plugin id, e.g. "front:search_list" (theme-owned copy).
    * @param string $viewId
    *   The search view id.
    * @param string $filterIdentifier
@@ -144,7 +114,7 @@ class SearchSetup {
   public function ensureBinding(string $sdcId, string $viewId, string $filterIdentifier = 's'): array {
     $storage = $this->entityTypeManager->getStorage('neo_component');
     /** @var \Drupal\neo_alchemist\ComponentInterface|null $component */
-    $component = $storage->load('list_search');
+    $component = $storage->load('search_list');
     if ($component) {
       $status = 'exists';
       $settings = $component->get('settings');
@@ -162,7 +132,7 @@ class SearchSetup {
     // Two-save: the create branch derives schema/expression and the props
     // skeleton; bindings can only be injected on a second save.
     $component = $storage->create([
-      'id' => 'list_search',
+      'id' => 'search_list',
       'label' => 'Search | Collection',
       'description' => 'Flat site-search results: search input, type badges, highlighted excerpts, chips, count and pager — bound to the search view.',
       'group' => 'collection',
@@ -173,7 +143,7 @@ class SearchSetup {
     $component->save();
 
     /** @var \Drupal\neo_alchemist\Entity\Component $component */
-    $component = $storage->load('list_search');
+    $component = $storage->load('search_list');
     $props = $component->get('settings')['props'] ?? [];
     $shapeFields = [
       'title' => ['field' => '_entity:label'],
@@ -235,8 +205,8 @@ class SearchSetup {
   /**
    * Builds the quick-search variation settings.
    */
-  public function buildVariationSettings(string $selector, string $alias, string $filterIdentifier): array {
-    return [
+  public function buildVariationSettings(string $selector, string $alias, string $filterIdentifier, ?string $component = NULL): array {
+    $settings = [
       'selectors' => $selector,
       'min_chars' => 2,
       'group_by' => 'bundle',
@@ -244,7 +214,12 @@ class SearchSetup {
       'all_results_url' => $alias . '?' . $filterIdentifier . '=[query]',
       'all_results_min' => 1,
     ];
+    // Only when the theme actually owns a copy — otherwise the variation
+    // inherits the base setting, which is the shipped default.
+    if ($component) {
+      $settings['component'] = $component;
+    }
+    return $settings;
   }
-
 
 }

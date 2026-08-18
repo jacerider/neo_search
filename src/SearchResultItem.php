@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Drupal\neo_search;
 
+use Drupal\Core\Render\Markup;
+
 /**
  * A single quick search result.
  */
@@ -61,22 +63,27 @@ final class SearchResultItem {
   public ?string $typeLabel = NULL;
 
   /**
-   * Converts the item to its JSON envelope representation.
+   * Converts the item to props for the search_quick component.
+   *
+   * Keys are snake_case because they are read from twig. $excerpt and $rendered
+   * are already safe — Xss::filter down to mark/strong/em, and the render
+   * pipeline respectively — so they are wrapped as Markup and print without
+   * |raw. $label is deliberately left a plain string so twig escapes it.
    *
    * @return array
-   *   The array representation.
+   *   The prop representation.
    */
-  public function toArray(): array {
+  public function toProps(): array {
     return [
       'id' => $this->id,
       'label' => $this->label,
       'url' => $this->url,
-      'entityType' => $this->entityTypeId,
+      'entity_type' => $this->entityTypeId,
       'bundle' => $this->bundle,
-      'typeLabel' => $this->typeLabel,
-      'excerpt' => $this->excerpt,
-      'rendered' => $this->rendered,
-      'extra' => $this->extra ?: new \stdClass(),
+      'type_label' => $this->typeLabel,
+      'excerpt' => $this->excerpt === NULL ? NULL : Markup::create($this->excerpt),
+      'rendered' => $this->rendered === NULL ? NULL : Markup::create($this->rendered),
+      'extra' => $this->extra,
     ];
   }
 

@@ -5,11 +5,18 @@ results are fetched from a permission-aware JSON endpoint and rendered below
 the input — either as a dropdown list anchored to the input or as a full-width
 panel of grouped cards.
 
-The module also ships the **`list_search`** Alchemist component (a flat
-search-results page body) as an install scaffold, plus a turnkey provisioning
-command for the full search stack. The setup command copies the component
-into your theme (shadcn-style) so each site fully owns and can restyle its
-markup — an existing theme copy is never overwritten.
+Both the quick-search panel and the full results page get their markup from
+single directory components, so layout and styling live in Twig rather than in
+JavaScript or an override stylesheet:
+
+- **`search_quick`** — the typeahead panel body, rendered server-side per query.
+- **`search_list`** — a flat search-results page body, placed by an editor.
+
+Both declare `neo_install: true`, so **installing this module copies them into
+your default theme and points the quick search at that copy** — you are editing
+your own markup from the first request. Your copy is never overwritten;
+`drush neo:alchemist:eject <id> --force` restores the module's version if you
+want to start over. See [Theming](#theming).
 
 ## Full search page (turnkey)
 
@@ -23,10 +30,10 @@ prompted), index footguns are fixed with consent (datasources set to index no
 languages, missing highlight processor, missing bundle-property fields for
 type badges), a headless `search` view is generated from a shipped template
 (full pager, tag-based cache, exposed `?s=` fulltext filter, per-datasource
-type-label fields merged for the component's badge), the `list_search`
-component is copied into your theme (customize it at
-`<theme>/components/list_search`; re-runs never touch your copy), its saved
-binding is created against `<theme>:list_search`, an Alchemist-owned node
+type-label fields merged for the component's badge), the theme copies of
+`search_list` and `search_quick` are confirmed (they land at install; re-runs
+never touch them), the `search_list`
+saved binding is created against `<theme>:search_list`, an Alchemist-owned node
 takes `/search` (via
 `neo:alchemist:views-page` when a views page display owns the path), the
 quick-search variation is created, and permissions (`use neo_search`, plus
@@ -49,7 +56,8 @@ neo_settings pattern). Each variation is one quick search instance:
   source keys into one group), or hide groups without code.
 - **Display**: `list` (anchored dropdown) or `cards` (full-width mega panel
   under a configurable anchor element such as `header`), columns, min/max
-  characters, debounce, optional per-entity-type view-mode rendering.
+  characters, debounce, optional per-entity-type view-mode rendering, and the
+  **panel component** that renders the results (see [Theming](#theming)).
 - **All results link**: derived from a search view (path and exposed filter
   identifier are read from the view — nothing hardcoded), or a custom URL
   with a `[query]` token.
@@ -67,30 +75,17 @@ the endpoint (typically anonymous + authenticated).
   "variation": "neo_search_header",
   "total": 7,
   "empty": false,
-  "groups": [
-    {
-      "id": "services",
-      "label": "Services",
-      "items": [
-        {
-          "id": "node:12",
-          "label": "Well Permits",
-          "url": "/services/well-permits",
-          "entityType": "node",
-          "bundle": "service",
-          "typeLabel": "Service",
-          "excerpt": "…<strong>well</strong>…",
-          "rendered": null,
-          "extra": {}
-        }
-      ]
-    }
-  ],
-  "allResultsUrl": "/search?s=well%20per",
-  "resultsLabel": "Showing results for \"well per\"",
-  "emptyMessage": null
+  "emptyMessage": null,
+  "html": "<div>…<a href=\"/services/well-permits\" role=\"option\">…</a>…</div>"
 }
 ```
+
+`html` is the panel body, rendered server-side through the variation's
+`search_quick` component and injected verbatim by the client. The per-result
+data is deliberately not on the wire — the markup is the contract, and it is
+already cache-tag invalidated server-side and browser-cached via the
+variation's max-age. To reach the result data, subscribe to
+`NeoSearchResultsEvent` server-side rather than parsing the response.
 
 ## Altering results programmatically
 
@@ -153,15 +148,81 @@ works inside overflow-hidden or animated containers.
   `neo-search:error`, and cancellable `neo-search:select`.
 - JS API: `Drupal.neoSearch.get(inputEl)`, `Drupal.neoSearch.closeAll()`.
 
-Theming: `.neo-search-panel*` classes in `src/css/search.css`; override the
-CSS custom properties (`--neo-search-z`, `--neo-search-max-height`,
-`--neo-search-columns`) or the classes in your theme.
-
 Note: when per-item view-mode rendering is enabled, the rendered markup's
 asset libraries are **not** shipped with the JSON payload — use view modes
 that need no bespoke JS, or attach those libraries globally.
 
+## Theming
+
+The panel splits cleanly in two.
+
+**The chrome is JS + CSS.** The positioned wrapper, the `[role=listbox]` host,
+the aria-live announcer and the loading overlay are behavior, styled by
+`.neo-search-panel*` in `src/css/search.css`. Override those classes or the CSS
+custom properties (`--neo-search-z`, `--neo-search-max-height`) in your theme.
+
+**The results are Twig.** Everything inside the listbox — the results label,
+groups, items, empty state and all-results link — comes from the `search_quick`
+single directory component, rendered server-side. Your theme already owns a copy
+at `<theme>/components/search_quick` — it landed when the module was installed.
+Edit it, then:
+
+```
+drush cr && npm run deploy
+```
+
+The markup is entirely yours: reorder, add thumbnails, wrap items in cards, use
+whatever Tailwind you like. Point a variation at a different component under
+**Display → Panel component**; the module's own `neo_search:search_quick` stays
+available as a fallback if the theme copy is ever deleted.
+
+The theme copy is `neo: true`, so it also works in the Alchemist preview at
+`/admin/config/neo/alchemist/preview/front:search_quick` — edit props, flip the
+colour scheme, check it at three widths, all against its `examples`. (The module
+source is `neo: false` on purpose, so it stays out of the picker; preview the
+theme copy, not `neo_search:search_quick`.)
+
+### Rendering through a component instance
+
+**Display → Panel component** lists two kinds of choice, because they are
+mutually exclusive:
+
+- a **component** (`front:search_quick`) renders that twig directly — the
+  default, and what installing the module selects for you;
+- a **component instance** routes through an Alchemist `neo_component` entity, so
+  its configuration — colour scheme, access rules, anything wired on its manage
+  screen — applies as well. Create one at `/admin/config/neo/alchemist/add`.
+
+The search results come from the request either way; an instance
+contributes its styling and policy, not its data, and anything its value
+providers resolve for the results props is overwritten.
+
+The two are told apart by shape rather than a second setting: an SDC id is
+always `provider:name`, a component instance id never contains a colon. Deleting or
+disabling an instance falls back to the shipped component and logs, so
+this can never take the quick search down.
+
+Two things to know:
+
+- **The contract**: every selectable row must carry `role="option"` and an
+  `href`. After injection the JS collects `[role="option"]` in document order,
+  mints the ids, and drives them with the arrow keys. Break that and keyboard
+  navigation breaks; nothing else is assumed.
+- **The rendered panel is cached**, so run `drush cr` after editing the twig.
+
+An ejected copy is a fork: later improvements to the shipped component will not
+reach it. If the configured component goes missing the panel falls back to
+`neo_search:search_quick` and logs a warning rather than failing.
+
+After customizing, run `ddev nightwatch neo_search` — the browser suite asserts
+the contract, arrow-key traversal, `aria-activedescendant`, wrap-around, Enter
+navigation and the empty state, so a restructure that breaks keyboard access
+fails a test instead of shipping.
+
 ## Drush
 
-`drush neo:search:query <variation> <text> [--uid=N]` — run a search from the
-CLI and print the envelope plus its cache tags/contexts.
+- `drush neo:search:query <variation> <text> [--uid=N]` — run a search from the
+  CLI and print the envelope plus its cache tags/contexts.
+- `drush neo:alchemist:eject [id] [--theme=] [--force]` — re-copy a module
+  component into a theme (neo_alchemist; runs automatically at install).
+- `drush neo:search:setup` — provision the full search stack (see above).

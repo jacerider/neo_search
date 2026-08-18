@@ -60,6 +60,9 @@ neo_search:
     display:
       type: string
       label: 'Display style'
+    component:
+      type: string
+      label: 'Panel component'
     columns:
       type: integer
       label: 'Card columns'

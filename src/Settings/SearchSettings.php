@@ -12,7 +12,9 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformStateInterface;
 use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Theme\ComponentPluginManager;
 use Drupal\neo_search\NeoSearchPluginManager;
+use Drupal\neo_search\SearchRunner;
 use Drupal\neo_settings\Plugin\SettingsBase;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -68,6 +70,11 @@ class SearchSettings extends SettingsBase {
   protected ModuleHandlerInterface $moduleHandler;
 
   /**
+   * The single directory component plugin manager.
+   */
+  protected ComponentPluginManager $componentManager;
+
+  /**
    * {@inheritdoc}
    */
   public function __construct(
@@ -80,12 +87,14 @@ class SearchSettings extends SettingsBase {
     EntityTypeManagerInterface $entity_type_manager,
     EntityDisplayRepositoryInterface $entity_display_repository,
     ModuleHandlerInterface $module_handler,
+    ComponentPluginManager $component_manager,
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $messenger, $form_builder);
     $this->searchPluginManager = $search_plugin_manager;
     $this->entityTypeManager = $entity_type_manager;
     $this->entityDisplayRepository = $entity_display_repository;
     $this->moduleHandler = $module_handler;
+    $this->componentManager = $component_manager;
   }
 
   /**
@@ -101,7 +110,8 @@ class SearchSettings extends SettingsBase {
       $container->get('plugin.manager.neo_search'),
       $container->get('entity_type.manager'),
       $container->get('entity_display.repository'),
-      $container->get('module_handler')
+      $container->get('module_handler'),
+      $container->get('plugin.manager.sdc')
     );
   }
 
@@ -259,6 +269,13 @@ class SearchSettings extends SettingsBase {
           ':input[name="' . $selector . '[display]"]' => ['value' => 'cards'],
         ],
       ],
+    ];
+    $form['display']['component'] = [
+      '#type' => 'select',
+      '#title' => $this->t('Panel component'),
+      '#description' => $this->t('What renders the results panel. Pick a <em>component</em> to render its twig directly, or a <em>component instance</em> to go through an Alchemist entity so its configuration — colour scheme, access rules — applies as well. The results themselves come from the request either way. Your theme owns its copy of the twig; edits take effect after a cache rebuild.'),
+      '#options' => $this->buildComponentOptions(),
+      '#default_value' => $this->getValue('component') ?: SearchRunner::DEFAULT_COMPONENT,
     ];
     $form['display']['panel_anchor'] = [
       '#type' => 'textfield',
@@ -500,6 +517,51 @@ class SearchSettings extends SettingsBase {
     }
 
     return $table;
+  }
+
+  /**
+   * Builds the panel component options.
+   *
+   * One select carries both kinds because they are mutually exclusive — the
+   * panel is rendered by a component or through a component instance, never
+   * both. The two are told apart by shape rather than a second config key: an
+   * SDC plugin id is always "provider:name", a neo_component entity id never
+   * contains a colon. See SearchRunner::renderPanel().
+   *
+   * Scoped to search_quick, the machine name SearchRunner supplies props for.
+   * A configured value that no longer resolves is still listed, so saving the
+   * form cannot silently discard it.
+   */
+  protected function buildComponentOptions(): array {
+    $components = [];
+    foreach (array_keys($this->componentManager->getDefinitions()) as $id) {
+      if (str_ends_with((string) $id, ':search_quick')) {
+        $components[$id] = $id === SearchRunner::DEFAULT_COMPONENT
+          ? $this->t('@id — shipped default', ['@id' => $id])
+          : $id;
+      }
+    }
+
+    $entities = [];
+    /** @var \Drupal\neo_alchemist\ComponentInterface $entity */
+    foreach ($this->entityTypeManager->getStorage('neo_component')->loadMultiple() as $id => $entity) {
+      if (str_ends_with((string) $entity->get('component'), ':search_quick')) {
+        $entities[$id] = $entity->label() ?: $id;
+      }
+    }
+    asort($entities);
+
+    $options = [];
+    if ($entities) {
+      $options[(string) $this->t('Component Instances')] = $entities;
+    }
+    $options[(string) $this->t('Components')] = $components;
+
+    $current = trim((string) $this->getValue('component'));
+    if ($current !== '' && !isset($components[$current]) && !isset($entities[$current])) {
+      $options[$current] = $this->t('@id — missing, falls back to the shipped default', ['@id' => $current]);
+    }
+    return $options;
   }
 
   /**

@@ -3,49 +3,37 @@
  * Shared types for the neo_search frontend.
  */
 
-export interface NeoSearchItem {
-  id: string;
-  label: string;
-  url: string;
-  entityType: string | null;
-  bundle: string | null;
-  typeLabel: string | null;
-  excerpt: string | null;
-  rendered: string | null;
-  extra: Record<string, unknown>;
-}
-
-export interface NeoSearchGroup {
-  id: string;
-  label: string;
-  items: NeoSearchItem[];
-}
-
 export interface NeoSearchEnvelope {
   query: string;
   variation: string;
   total: number;
   empty: boolean;
-  groups: NeoSearchGroup[];
-  allResultsUrl: string | null;
-  resultsLabel: string | null;
   emptyMessage: string | null;
+  /**
+   * The panel body, rendered server-side by the search_quick component.
+   *
+   * Injected verbatim; the per-result data is deliberately not on the wire.
+   * Every selectable row within carries role="option" and an href — that is the
+   * whole contract between the component and this code.
+   */
+  html: string;
 }
 
-export interface NeoSearchTexts {
-  allResults: string;
-}
-
+/**
+ * Panel behavior only.
+ *
+ * Anything that shapes the results markup — the column count, the all-results
+ * label — is a prop on the server-rendered search_quick component and is
+ * deliberately absent here.
+ */
 export interface NeoSearchConfig {
   id: string;
   endpoint: string;
   selectors: string[];
   display: 'list' | 'cards';
-  columns: number;
   panelAnchor: string;
   minChars: number;
   maxChars: number;
   debounce: number;
   breakpoint: string;
-  texts: NeoSearchTexts;
 }

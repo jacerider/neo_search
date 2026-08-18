@@ -22,7 +22,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  *
  * One command sets up everything the neo suite's search story needs on a
  * fresh site: a headless search view over the site's index (with
- * per-datasource type-label fields), the saved list_search component binding,
+ * per-datasource type-label fields), the saved search_list component binding,
  * an Alchemist-owned /search node, the quick-search variation, and the
  * permissions. Every step detects existing state first — re-running on a
  * provisioned site is a no-op narration.
@@ -55,7 +55,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
   #[CLI\Option(name: 'alias', description: 'The search page path (defaults to "/search").')]
   #[CLI\Option(name: 'bundle', description: 'Node bundle for the search page (defaults to "system").')]
   #[CLI\Option(name: 'selector', description: 'CSS selector of the quick-search input (defaults to "#site-search").')]
-  #[CLI\Option(name: 'theme', description: 'Theme that receives the list_search component copy (defaults to the default theme).')]
+  #[CLI\Option(name: 'theme', description: 'Theme that receives the search_list component copy (defaults to the default theme).')]
   #[CLI\Option(name: 'skip-page', description: 'Skip the search page node step.')]
   #[CLI\Option(name: 'skip-variation', description: 'Skip the quick-search variation step.')]
   #[CLI\Usage(name: 'drush neo:search:setup -y', description: 'Provision everything with defaults, unattended.')]
@@ -137,7 +137,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
       // views on the same index). Preference order: the view the saved
       // binding already uses → the --view option's id → a prompt.
       $viewId = NULL;
-      $binding = $this->entityTypeManager->getStorage('neo_component')->load('list_search');
+      $binding = $this->entityTypeManager->getStorage('neo_component')->load('search_list');
       $boundView = $binding?->get('settings')['props']['items']['plugins']['items']['views']['settings']['view_id'] ?? NULL;
       if ($boundView && isset($existing[$boundView])) {
         $viewId = $boundView;
@@ -176,21 +176,21 @@ final class NeoSearchSetupCommands extends DrushCommands {
       $this->io()->error(sprintf('Theme "%s" is not installed — re-run with --theme=<installed theme>.', $theme));
       return self::EXIT_FAILURE;
     }
-    $componentStatus = $this->setup->installComponent($theme);
-    if ($componentStatus === 'installed') {
-      \Drupal::service('plugin.manager.sdc')->clearCachedDefinitions();
-      \Drupal::service('library.discovery')->clearCachedDefinitions();
-      \Drupal::service('theme.registry')->reset();
-      $this->io()->success(sprintf('Copied list_search into the "%s" theme — customize it at %s/components/list_search.', $theme, \Drupal::service('extension.list.theme')->getPath($theme)));
+    // Both SDCs declare `neo_install: true`, so installing this module already
+    // ejected them. Re-run here for the --theme case and to catch a copy that
+    // was deleted since; it is idempotent and clears its own caches.
+    foreach (\Drupal::service('neo_alchemist.theme_component_installer')->installAll($theme) as $id => $status) {
+      $this->io()->text(match ($status) {
+        'installed' => sprintf('Component: copied %s into "%s".', $id, $theme),
+        'exists' => sprintf('Component: "%s" already has %s — leaving your copy untouched.', $theme, $id),
+        default => sprintf('Component: could not install %s — check the log.', $id),
+      });
     }
-    else {
-      $this->io()->text(sprintf('Component: "%s" already has list_search — leaving your copy untouched.', $theme));
-    }
-    $sdcId = $theme . ':list_search';
+    $sdcId = $theme . ':search_list';
 
     // -- Binding.
     $result = $this->setup->ensureBinding($sdcId, $viewId, $filterIdentifier);
-    $this->io()->text(sprintf('Component binding "list_search": %s.', $result['status']));
+    $this->io()->text(sprintf('Component binding "search_list": %s.', $result['status']));
 
     // -- 6. Page.
     $alias = '/' . ltrim((string) $options['alias'], '/');
@@ -200,7 +200,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
 
     // -- 7. Variation + permissions.
     if (empty($options['skip-variation'])) {
-      $this->provisionVariation((string) $options['selector'], $alias, $filterIdentifier, $indexId);
+      $this->provisionVariation((string) $options['selector'], $alias, $filterIdentifier, $indexId, $theme . ':search_quick');
     }
     $this->provisionPermissions();
 
@@ -208,8 +208,10 @@ final class NeoSearchSetupCommands extends DrushCommands {
     $this->io()->section('Summary');
     $notes = [
       sprintf('Search page: %s', $alias),
-      sprintf('Customize the results markup at %s/components/list_search (your theme owns the copy).', \Drupal::service('extension.list.theme')->getPath($theme)),
-      'Style the page via the node\'s Layout tab (component "list_search", locked & provider-bound).',
+      sprintf('Customize the results markup at %s/components/search_list (your theme owns the copy).', \Drupal::service('extension.list.theme')->getPath($theme)),
+      sprintf('Customize the quick-search panel at %s/components/search_quick — keep role="option" and href on every selectable row or keyboard navigation breaks. Run drush cr after editing.', \Drupal::service('extension.list.theme')->getPath($theme)),
+      'Restore either component from its module source with: drush neo:alchemist:eject <id> --force',
+      'Style the page via the node\'s Layout tab (component "search_list", locked & provider-bound).',
       'Quick search settings: /admin/config/neo/search',
       'Compile assets if this is the first neo_search install on this site: drush neo:build && npm run deploy',
       'Export config when satisfied: drush config:export',
@@ -230,7 +232,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
     foreach ($pageDisplays as $displayId => $path) {
       if ('/' . ltrim($path, '/') === $alias) {
         $this->io()->text(sprintf('Page: views display %s:%s owns %s — converting via neo:alchemist:views-page.', $viewId, $displayId, $alias));
-        $process = Drush::drush(Drush::aliasManager()->getSelf(), 'neo:alchemist:views-page', [$viewId . ':' . $displayId], ['component' => 'list_search']);
+        $process = Drush::drush(Drush::aliasManager()->getSelf(), 'neo:alchemist:views-page', [$viewId . ':' . $displayId], ['component' => 'search_list']);
         $process->mustRun($process->showRealtime());
         return;
       }
@@ -250,13 +252,13 @@ final class NeoSearchSetupCommands extends DrushCommands {
             if ($definition->getType() === 'neo_component_tree' && !$node->get($name)->isEmpty()) {
               $value = $node->get($name)->first()->getValue();
               $tree = is_string($value['tree'] ?? NULL) ? $value['tree'] : json_encode($value['tree'] ?? []);
-              $seeded = $seeded || str_contains($tree, 'list_search');
+              $seeded = $seeded || str_contains($tree, 'search_list');
             }
           }
         }
         $this->io()->{$seeded ? 'text' : 'warning'}($seeded
-          ? 'The aliased node already places list_search.'
-          : 'The aliased node does not appear to place the list_search component — add it via the node\'s Layout tab.');
+          ? 'The aliased node already places search_list.'
+          : 'The aliased node does not appear to place the search_list component — add it via the node\'s Layout tab.');
       }
       return;
     }
@@ -276,7 +278,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
       $this->io()->error(sprintf('Bundle "%s" has no component tree field.', $bundle));
       return;
     }
-    if (!$this->io()->confirm(sprintf('Create a published %s node at %s seeded with list_search?', $bundle, $alias))) {
+    if (!$this->io()->confirm(sprintf('Create a published %s node at %s seeded with search_list?', $bundle, $alias))) {
       return;
     }
     $pathValue = ['alias' => $alias];
@@ -292,7 +294,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
     ]);
     /** @var \Drupal\neo_alchemist\Plugin\Field\FieldType\ComponentTreeItem $item */
     $item = $node->get($fieldName)->appendItem([]);
-    $item->addComponent($this->uuid->generate(), 'list_search');
+    $item->addComponent($this->uuid->generate(), 'search_list');
     $node->save();
     $this->io()->success(sprintf('Created node %d at %s.', $node->id(), $alias));
   }
@@ -300,7 +302,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
   /**
    * Ensures a quick-search variation bound to the site's input exists.
    */
-  protected function provisionVariation(string $selector, string $alias, string $filterIdentifier, string $indexId): void {
+  protected function provisionVariation(string $selector, string $alias, string $filterIdentifier, string $indexId, ?string $component = NULL): void {
     $storage = $this->entityTypeManager->getStorage('neo_settings');
     foreach ($storage->loadByProperties(['plugin' => 'neo_search']) as $variation) {
       if (trim((string) ($variation->get('settings')['selectors'] ?? '')) !== '') {
@@ -336,7 +338,7 @@ final class NeoSearchSetupCommands extends DrushCommands {
       'status' => TRUE,
       'weight' => 0,
       'visibility' => [],
-      'settings' => $this->setup->buildVariationSettings($selector, $alias, $filterIdentifier),
+      'settings' => $this->setup->buildVariationSettings($selector, $alias, $filterIdentifier, $component),
     ])->save();
     $this->io()->success('Variation created. Group the result cards at /admin/config/neo/search/variations.');
   }

@@ -16,12 +16,16 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Render\BubbleableMetadata;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\Core\Theme\ComponentPluginManager;
+use Drupal\Core\Theme\ThemeManagerInterface;
+use Drupal\neo_alchemist\ComponentInterface;
 use Drupal\neo_settings\Plugin\SettingsInterface;
 use Drupal\neo_search\Event\NeoSearchQueryEvent;
 use Drupal\neo_search\Event\NeoSearchResultsEvent;
 use Drupal\neo_search\Exception\FloodException;
 use Drupal\neo_search\Exception\VariationNotFoundException;
 use Drupal\neo_settings\SettingsRepositoryInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -39,6 +43,11 @@ class SearchRunner {
   const FLOOD_NAME = 'neo_search.query';
 
   /**
+   * The component rendered when a variation names none, or names a missing one.
+   */
+  const DEFAULT_COMPONENT = 'neo_search:search_quick';
+
+  /**
    * Constructs the runner.
    */
   public function __construct(
@@ -53,6 +62,9 @@ class SearchRunner {
     protected EntityTypeBundleInfoInterface $bundleInfo,
     protected LanguageManagerInterface $languageManager,
     protected AccountProxyInterface $currentUser,
+    protected ComponentPluginManager $componentManager,
+    protected ThemeManagerInterface $themeManager,
+    protected LoggerInterface $logger,
     protected array $validCacheContexts = [],
   ) {}
 
@@ -83,7 +95,7 @@ class SearchRunner {
     // Length gate: never hits flood or the backend.
     if (mb_strlen($query) < (int) $values['min_chars']) {
       return new SearchPayload(
-        $this->buildEnvelope($settings->id(), $query, [], 0, $values, NULL),
+        $this->buildEnvelope($settings->id(), $query, [], 0, $values, NULL, $settingsCacheability),
         $settingsCacheability
       );
     }
@@ -106,6 +118,10 @@ class SearchRunner {
       'neo_search',
       $settings->id(),
       $langcode,
+      // The envelope carries rendered markup, so it is theme-dependent: a theme
+      // that ships its own search_quick copy produces different HTML for the
+      // same query.
+      $this->themeManager->getActiveTheme()->getName(),
       hash('sha256', mb_strtolower($query)),
       hash('sha256', implode(':', $contextKeys)),
     ]);
@@ -169,7 +185,7 @@ class SearchRunner {
     }
 
     $allResultsUrl = $this->buildAllResultsUrl($values, $request, $cacheability);
-    $envelope = $this->buildEnvelope($settings->id(), $query, $groups, $total, $values, $allResultsUrl);
+    $envelope = $this->buildEnvelope($settings->id(), $query, $groups, $total, $values, $allResultsUrl, $cacheability);
 
     $this->cache->set($cid, [
       'payload' => $envelope,
@@ -337,8 +353,9 @@ class SearchRunner {
         $html = (string) $this->renderer->renderInIsolation($build);
         // Cacheability bubbles into the response; #attached is deliberately
         // dropped from the payload — view modes used here must not depend on
-        // bespoke libraries (attach them globally if needed).
-        $cacheability->merge(BubbleableMetadata::createFromRenderArray($build));
+        // bespoke libraries (attach them globally if needed). ::merge() clones
+        // rather than mutates, so the accumulator has to be refined in place.
+        $cacheability->addCacheableDependency(BubbleableMetadata::createFromRenderArray($build));
         $item->rendered = $html;
       }
     }
@@ -385,27 +402,135 @@ class SearchRunner {
 
   /**
    * Builds the JSON envelope.
+   *
+   * The panel markup travels as one pre-rendered fragment: the client injects
+   * it and re-indexes the [role=option] elements, so the per-item data does not
+   * need to be on the wire as well. What stays is what the JS itself reads —
+   * the aria-live announcer needs the count and the empty message.
    */
-  protected function buildEnvelope(string $settingsId, string $query, array $groups, int $total, array $values, ?string $allResultsUrl): array {
-    $groupData = [];
-    foreach ($groups as $group) {
-      $groupData[] = [
-        'id' => $group['id'],
-        'label' => $group['label'],
-        'items' => array_map(fn (SearchResultItem $item) => $item->toArray(), array_values($group['items'])),
-      ];
-    }
-    $showAll = $allResultsUrl && $total >= (int) ($values['all_results_min'] ?? 0);
+  protected function buildEnvelope(string $settingsId, string $query, array $groups, int $total, array $values, ?string $allResultsUrl, CacheableMetadata $cacheability): array {
+    $empty = $total === 0;
+    $emptyMessage = $empty ? (string) $values['empty_message'] : NULL;
     return [
       'query' => $query,
       'variation' => $settingsId,
       'total' => $total,
-      'empty' => $total === 0,
-      'groups' => $groupData,
-      'allResultsUrl' => $showAll ? $allResultsUrl : NULL,
-      'resultsLabel' => $total > 0 ? str_replace('[query]', $query, (string) $values['results_label']) : NULL,
-      'emptyMessage' => $total === 0 ? (string) $values['empty_message'] : NULL,
+      'empty' => $empty,
+      'emptyMessage' => $emptyMessage,
+      'html' => $this->renderPanel($query, $groups, $total, $values, $allResultsUrl, $emptyMessage, $cacheability),
     ];
+  }
+
+  /**
+   * Renders the panel body through the variation's search_quick component.
+   *
+   * Two routes to the same markup, chosen by the one `component` setting. A
+   * component instance renders through its neo_component entity, so its
+   * configuration — colour scheme, access rules, anything wired on the manage
+   * screen — applies, and the search results are laid over the top because they
+   * are request data its value providers can know nothing about. A plain
+   * component renders the SDC directly, the zero-configuration default.
+   */
+  protected function renderPanel(string $query, array $groups, int $total, array $values, ?string $allResultsUrl, ?string $emptyMessage, CacheableMetadata $cacheability): string {
+    $groupProps = [];
+    foreach ($groups as $group) {
+      $groupProps[] = [
+        'id' => (string) $group['id'],
+        'label' => (string) $group['label'],
+        'items' => array_map(fn (SearchResultItem $item) => $item->toProps(), array_values($group['items'])),
+      ];
+    }
+    $showAll = $allResultsUrl && $total >= (int) ($values['all_results_min'] ?? 0);
+    $props = [
+      'display' => (string) ($values['display'] ?? 'list'),
+      'columns' => (int) ($values['columns'] ?? 3),
+      'query' => $query,
+      'total' => $total,
+      'empty' => $total === 0,
+      'groups' => $groupProps,
+      'all_results_url' => $showAll ? $allResultsUrl : NULL,
+      'all_results_label' => (string) ($values['all_results_label'] ?? ''),
+      'results_label' => $total > 0 ? str_replace('[query]', $query, (string) $values['results_label']) : NULL,
+      'empty_message' => $emptyMessage,
+    ];
+
+    $entity = $this->resolveComponentEntity($values, $cacheability);
+    if ($entity) {
+      $build = $entity->toRenderable();
+      // Union, not merge: our keys win, and every prop the entity resolved that
+      // we do not supply — `attributes` carrying the scheme class, neoUuid, any
+      // style prop — survives untouched.
+      $build['#props'] = $props + ($build['#props'] ?? []);
+    }
+    else {
+      $build = [
+        '#type' => 'component',
+        '#component' => $this->resolveComponentId($values),
+        '#props' => $props,
+      ];
+    }
+
+    $html = (string) $this->renderer->renderInIsolation($build);
+    // Same contract as ::renderItems() — cacheability bubbles into the
+    // response, #attached does not. A search_quick component must not declare
+    // its own libraries; the panel's assets are attached page-wide.
+    $cacheability->addCacheableDependency(BubbleableMetadata::createFromRenderArray($build));
+    return $html;
+  }
+
+  /**
+   * Resolves the configured component instance, if the setting names one.
+   *
+   * An SDC plugin id is always "provider:name" and a config entity id never
+   * contains a colon, so the one setting can carry either without a second key
+   * to keep in sync. Returns NULL for "render the component directly", which
+   * covers a plain component id, an instance deleted since, and a disabled one.
+   * Only the deleted case is worth a log line; the others are deliberate.
+   */
+  protected function resolveComponentEntity(array $values, CacheableMetadata $cacheability): ?ComponentInterface {
+    $id = trim((string) ($values['component'] ?? ''));
+    if ($id === '' || str_contains($id, ':')) {
+      return NULL;
+    }
+    $storage = $this->entityTypeManager->getStorage('neo_component');
+    // The list is cheap to depend on and makes a newly created entity show up
+    // without waiting for the search cache to expire.
+    $cacheability->addCacheTags($storage->getEntityType()->getListCacheTags());
+    /** @var \Drupal\neo_alchemist\ComponentInterface|null $entity */
+    $entity = $storage->load($id);
+    if (!$entity) {
+      $this->logger->warning('The neo_search component instance "@id" does not exist; rendering "@fallback" instead.', [
+        '@id' => $id,
+        '@fallback' => self::DEFAULT_COMPONENT,
+      ]);
+      return NULL;
+    }
+    $cacheability->addCacheableDependency($entity);
+    return $entity->status() ? $entity : NULL;
+  }
+
+  /**
+   * Resolves the component to render, falling back when it has gone missing.
+   *
+   * A theme copy can be deleted or renamed long after the variation was
+   * configured; a quick search that silently reverts to the shipped default is
+   * a better failure than a fatal on every keystroke.
+   */
+  protected function resolveComponentId(array $values): string {
+    $id = trim((string) ($values['component'] ?? ''));
+    // A colon-free value named a component instance, which
+    // resolveComponentEntity() has already handled by the time this runs.
+    if ($id === '' || !str_contains($id, ':') || $id === self::DEFAULT_COMPONENT) {
+      return self::DEFAULT_COMPONENT;
+    }
+    if ($this->componentManager->hasDefinition($id)) {
+      return $id;
+    }
+    $this->logger->warning('The neo_search component "@id" does not exist; falling back to "@fallback".', [
+      '@id' => $id,
+      '@fallback' => self::DEFAULT_COMPONENT,
+    ]);
+    return self::DEFAULT_COMPONENT;
   }
 
 }
