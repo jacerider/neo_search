@@ -27,8 +27,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   route = "/admin/config/neo/search",
  *   admin_permission = "administer neo_search",
  *   variation_allow = true,
- *   variation_label = "search",
- *   variation_label_plural = "searches",
+ *   variation_label = "selector",
+ *   variation_label_plural = "selectors",
  *   variation_conditions = false,
  *   variation_ordering = false,
  * )
