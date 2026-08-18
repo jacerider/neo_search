@@ -16,6 +16,7 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Render\BubbleableMetadata;
 use Drupal\Core\Render\RendererInterface;
 use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\neo_settings\Plugin\SettingsInterface;
 use Drupal\neo_search\Event\NeoSearchQueryEvent;
 use Drupal\neo_search\Event\NeoSearchResultsEvent;
 use Drupal\neo_search\Exception\FloodException;
@@ -73,7 +74,7 @@ class SearchRunner {
     $settings = $this->resolveVariation($variationId);
     $values = $settings->getValues();
     $settingsCacheability = (new CacheableMetadata())
-      ->addCacheTags($this->getSettingsCacheTags($settings->id()));
+      ->addCacheTags($this->getSettingsCacheTags($settings));
 
     $langcode = $this->languageManager->getCurrentLanguage()->getId();
     $query = trim((string) preg_replace('/\s+/u', ' ', $rawQuery));
@@ -185,17 +186,10 @@ class SearchRunner {
    *   The settings plugin.
    */
   protected function resolveVariation(string $variationId) {
-    $all = $this->settingsRepository->getAll(FALSE);
-    $core = $this->settingsRepository->getCore();
-    if (isset($all[$variationId])) {
-      return $all[$variationId];
-    }
-    // Allow the short form without the plugin id prefix.
-    $prefixed = $core->getPluginId() . '_' . $variationId;
-    if (isset($all[$prefixed])) {
-      return $all[$prefixed];
-    }
-    throw new VariationNotFoundException(sprintf('Unknown neo_search variation "%s".', $variationId));
+    // ::get() is total and handles the short form, so this only has to supply
+    // the failure policy the repository deliberately leaves to callers.
+    return $this->settingsRepository->get($variationId, FALSE)
+      ?? throw new VariationNotFoundException(sprintf('Unknown neo_search variation "%s".', $variationId));
   }
 
   /**
@@ -214,10 +208,10 @@ class SearchRunner {
   /**
    * Gets the config cache tags for a resolved settings instance.
    */
-  public function getSettingsCacheTags(string $settingsId): array {
+  public function getSettingsCacheTags(SettingsInterface $settings): array {
     $tags = ['config:neo_search.settings'];
-    if ($settingsId !== $this->settingsRepository->getCore()->getPluginId()) {
-      $tags[] = 'config:neo_settings.variation.' . $settingsId;
+    if ($settings->isVariation()) {
+      $tags[] = 'config:neo_settings.variation.' . $settings->id();
     }
     return $tags;
   }

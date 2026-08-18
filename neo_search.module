@@ -27,7 +27,7 @@ function neo_search_page_attachments(array &$attachments) {
   /** @var \Drupal\neo_settings\SettingsRepositoryInterface $repository */
   $repository = \Drupal::service('neo_search.settings');
   $variations = [];
-  foreach ($repository->getAvailable() as $id => $settings) {
+  foreach ($repository->getAll() as $id => $settings) {
     $selectors = array_values(array_filter(array_map('trim', preg_split('/\R+/', (string) $settings->getValue('selectors')))));
     if (!$selectors) {
       continue;
