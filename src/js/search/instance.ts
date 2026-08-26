@@ -44,6 +44,7 @@ export default class NeoSearchInstance {
     input.addEventListener('input', this.onInput);
     input.addEventListener('keydown', this.onKeydown);
     input.addEventListener('focus', this.onFocus);
+    input.addEventListener('click', this.onClick);
     input.addEventListener('focusout', this.onFocusout);
   }
 
@@ -61,15 +62,41 @@ export default class NeoSearchInstance {
   };
 
   protected onFocus = (): void => {
-    if (!this.enabled) {
+    this.reopen();
+  };
+
+  /**
+   * Reopens the panel on a click in an input that already holds focus.
+   *
+   * Focus is not enough of a trigger on its own: Escape (and Tab back into the
+   * same field) closes the panel without moving focus, so the next click fires
+   * no focus event and the results for an unchanged value stay unreachable
+   * until the value itself changes. Clicking a combobox is expected to bring
+   * its list back.
+   */
+  protected onClick = (): void => {
+    this.reopen();
+  };
+
+  /**
+   * Shows the results already held for the current value, if there are any.
+   *
+   * Memo-only by design — reopening is a display concern, so it must never put
+   * a request on the wire for a value the user has not just typed.
+   */
+  protected reopen(): void {
+    if (!this.enabled || this.panel.isOpen) {
       return;
     }
     const query = this.normalize(this.input.value);
+    if (query.length < this.config.minChars) {
+      return;
+    }
     const cached = this.memo.get(query.toLowerCase());
-    if (cached && query.length >= this.config.minChars) {
+    if (cached) {
       this.show(cached);
     }
-  };
+  }
 
   protected onFocusout = (e: FocusEvent): void => {
     const related = e.relatedTarget as Node | null;
@@ -81,6 +108,13 @@ export default class NeoSearchInstance {
 
   protected onKeydown = (e: KeyboardEvent): void => {
     if (!this.panel.isOpen) {
+      // The keyboard counterpart of onClick: after Escape the input still holds
+      // focus, so ArrowDown is the only gesture left that should bring the list
+      // back. Everything else stays inert while closed.
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        this.reopen();
+      }
       return;
     }
     switch (e.key) {
@@ -271,6 +305,7 @@ export default class NeoSearchInstance {
     this.input.removeEventListener('input', this.onInput);
     this.input.removeEventListener('keydown', this.onKeydown);
     this.input.removeEventListener('focus', this.onFocus);
+    this.input.removeEventListener('click', this.onClick);
     this.input.removeEventListener('focusout', this.onFocusout);
     this.panel.destroy();
   }

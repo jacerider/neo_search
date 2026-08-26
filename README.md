@@ -139,6 +139,10 @@ works inside overflow-hidden or animated containers.
   result announcements.
 - Escape closes the panel first; a second press reaches ancestors (e.g. a
   header slide-out toggle).
+- Reopening an unchanged value costs nothing: focusing the input, clicking it
+  when it already holds focus, or pressing ArrowDown while closed all restore
+  the results already in memory. Only a value the user never searched needs a
+  request — reopening never puts one on the wire.
 - Per-instance debounce, `AbortController`, an in-memory result memo, and
   silent backoff on `429`.
 - While the panel is open its placement follows the anchor from a

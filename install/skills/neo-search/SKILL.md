@@ -177,6 +177,15 @@ queries are also tagged `neo_search` / `neo_search_{variation}`.
 for `$request->account`; add cache tags/contexts on the returned
 `SearchResultSet` covering everything the results depend on.
 
+**Reopening a closed panel** — three gestures restore the results held for the
+current value, all routed through `NeoSearchInstance::reopen()`: `focus`, a
+`click` on an input that already holds focus, and ArrowDown while closed. The
+click and ArrowDown paths exist because Escape closes the panel **without moving
+focus**, so no `focus` event ever fires again and the results would be
+unreachable until the value changed. `reopen()` is memo-only on purpose —
+reopening is a display concern and must never put a request on the wire for a
+value the user has not just typed.
+
 **React on the client** — CustomEvents on the input (bubbling):
 `neo-search:request/results/open/close/error` and cancellable
 `neo-search:select` (preventDefault to stop navigation).
