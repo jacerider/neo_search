@@ -60,7 +60,11 @@ grouped results under a configured anchor element (e.g. `header`).
   binds by the selectors in `drupalSettings.neoSearch.variations`; the panel
   is appended to `document.body` (immune to overflow-hidden ancestors). ARIA
   combobox, wrap-around arrows, two-step Escape, debounce + AbortController +
-  memo Map, silent 429 backoff. Fetches slower than ~300ms show a loading
+  memo Map, silent 429 backoff. Placement is re-run from a **rAF loop that
+  watches the anchor's box while open**, not from scroll/resize alone: a sticky
+  header that animates its own height keeps moving for the length of its
+  transition after the last scroll event, which used to strand the panel
+  mid-animation. The loop is cancelled in `close()`. Fetches slower than ~300ms show a loading
   state (the site's neo_loader throbber via `drupalSettings.neoLoader.markup`,
   soft-consumed with a built-in spinner fallback — never neo_loader's
   `show()/hide()` API or `.ajax-progress` classes, whose global hide would

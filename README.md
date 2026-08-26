@@ -141,6 +141,10 @@ works inside overflow-hidden or animated containers.
   header slide-out toggle).
 - Per-instance debounce, `AbortController`, an in-memory result memo, and
   silent backoff on `429`.
+- While the panel is open its placement follows the anchor from a
+  requestAnimationFrame loop, so it stays put through anything that moves the
+  field without firing scroll or resize — a shrink-on-scroll header animating
+  its height after the last scroll event being the common one.
 - A loading state when a fetch takes longer than ~300ms: the panel shows the
   site's configured neo_loader throbber (consumed from
   `drupalSettings.neoLoader.markup` — no dependency; a built-in spinner is the

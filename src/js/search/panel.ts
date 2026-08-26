@@ -20,6 +20,8 @@ export default class NeoSearchPanel {
   options: HTMLElement[] = [];
   isOpen = false;
   protected repositionFrame = 0;
+  protected watchFrame = 0;
+  protected anchorKey = '';
   protected onReposition = () => {
     if (this.repositionFrame) {
       return;
@@ -28,6 +30,34 @@ export default class NeoSearchPanel {
       this.repositionFrame = 0;
       this.reposition();
     });
+  };
+
+  /**
+   * Follows the anchor for as long as the panel is open.
+   *
+   * Scroll and resize alone are not enough: a sticky header that animates its
+   * own height (a shrink-on-scroll site header is the common case) keeps moving
+   * for the length of its transition *after* the last scroll event, and nothing
+   * would re-run placement — the panel is left wherever it was mid-animation.
+   * Watching the anchor's box covers that and every other cause (fonts loading,
+   * an image settling, a neighbour wrapping) without having to know about them.
+   *
+   * Reading a rect per frame while open is cheap, and the panel is absolutely
+   * positioned on the body, so moving it cannot feed back into the anchor.
+   */
+  protected onWatch = () => {
+    if (!this.isOpen) {
+      this.watchFrame = 0;
+      return;
+    }
+    const rect = this.resolveAnchor().getBoundingClientRect();
+    // Only the values placement consumes, so an unrelated reflow is not churn.
+    const key = `${rect.top}|${rect.left}|${rect.width}|${rect.bottom}`;
+    if (key !== this.anchorKey) {
+      this.anchorKey = key;
+      this.reposition();
+    }
+    this.watchFrame = requestAnimationFrame(this.onWatch);
   };
 
   constructor(input: HTMLInputElement, config: NeoSearchConfig) {
@@ -232,6 +262,10 @@ export default class NeoSearchPanel {
     this.reposition();
     window.addEventListener('resize', this.onReposition, { passive: true });
     window.addEventListener('scroll', this.onReposition, { passive: true, capture: true });
+    if (!this.watchFrame) {
+      this.anchorKey = '';
+      this.watchFrame = requestAnimationFrame(this.onWatch);
+    }
   }
 
   /**
@@ -246,6 +280,14 @@ export default class NeoSearchPanel {
     this.setAnchorOpen(false);
     window.removeEventListener('resize', this.onReposition);
     window.removeEventListener('scroll', this.onReposition, { capture: true });
+    if (this.watchFrame) {
+      cancelAnimationFrame(this.watchFrame);
+      this.watchFrame = 0;
+    }
+    if (this.repositionFrame) {
+      cancelAnimationFrame(this.repositionFrame);
+      this.repositionFrame = 0;
+    }
   }
 
   /**
