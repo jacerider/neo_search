@@ -58,6 +58,9 @@ neo_settings pattern). Each variation is one quick search instance:
   under a configurable anchor element such as `header`), columns, min/max
   characters, debounce, optional per-entity-type view-mode rendering, and the
   **panel component** that renders the results (see [Theming](#theming)).
+- **Surround the input** (`list` only): align the panel to a wrapper *around*
+  the input instead of the input itself, so the two read as one surface — see
+  [Surrounding the input](#surrounding-the-input).
 - **All results link**: derived from a search view (path and exposed filter
   identifier are read from the view — nothing hardcoded), or a custom URL
   with a `[query]` token.
@@ -151,6 +154,39 @@ works inside overflow-hidden or animated containers.
 Note: when per-item view-mode rendering is enabled, the rendered markup's
 asset libraries are **not** shipped with the JSON payload — use view modes
 that need no bespoke JS, or attach those libraries globally.
+
+## Surrounding the input
+
+By default the `list` panel hangs off the `<input>`'s own box, which leaves it
+narrower and indented whenever the field sits inside a styled wrapper — a
+rounded pill, an icon, a submit button. **Display → Surround the input** points
+the panel at that wrapper instead:
+
+- the panel matches the wrapper's box exactly (`left` and `width`, not a
+  min-width the content can outgrow), and starts at its bottom edge;
+- the wrapper gets `is-neo-search-open` while the panel is open — including
+  during the loading state, which opens the panel without firing
+  `neo-search:open`;
+- the wrapper gets `--neo-search-overhang` from the **collar cushion** setting,
+  so the theme's padding has one source of truth;
+- the panel drops its top border and top radius (`.neo-search-panel--surround`).
+
+**Surround wrapper selector** is resolved as the closest matching *ancestor* of
+each bound input — unlike the cards **panel anchor**, which is looked up
+document-wide. Several inputs can share a variation, and `querySelector` would
+hand them all the first match. Empty means the input's closest `<form>`.
+
+The theme draws the collar itself, because the panel is appended to `<body>`
+and cannot paint behind an input that sits in a stacking context (a sticky,
+z-indexed header region is the usual case). Give the wrapper padding for the
+cushion and a surface that matches the panel — border on three sides, no bottom
+edge, top corners rounded — shown only when `is-neo-search-open` is present.
+Reserve the cushion as real padding rather than a negative-inset overlay, or it
+will cover whatever sits beside the field.
+
+If the wrapper lives inside a scheme scope (a dark header, say) while the panel
+does not, the two will not match: reset the collar's scope so `bg-default`
+resolves the same way it does at body level.
 
 ## Theming
 

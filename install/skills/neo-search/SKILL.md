@@ -41,6 +41,12 @@ grouped results under a configured anchor element (e.g. `header`).
   `/admin/config/neo/alchemist/preview/<provider>:search_quick` and can back
   such an entity; the side effect is that it also shows in the "add component"
   picker, where it would only ever render its examples.
+- **Two anchor settings, different resolution — do not conflate them.**
+  `panel_anchor` (cards) is `document.querySelector`, a page-level element like
+  `header`. `surround_anchor` (list, only when `surround` is on) is
+  `input.closest()`, because one variation can bind many inputs and a
+  document-wide lookup would hand every panel the first match. Both flow through
+  `NeoSearchPanel::resolveAnchor()`, which is also what `reposition()` measures.
 - Backends are `#[NeoSearch]` attribute plugins in `Plugin/NeoSearch`
   implementing `NeoSearchPluginInterface::search(SearchRequest): SearchResultSet`.
   Shipped: `search_api` (default; post-load `$entity->access('view')`
@@ -88,6 +94,29 @@ is access-checked). Building blocks live in the `neo_search.setup` service
 `search_api` (index, match mode `prefix`), group_by `bundle`, display `cards`,
 panel anchor `header`, all-results = the search view. Grant `use neo_search`
 to anonymous + authenticated. No markup changes are needed.
+
+**Make the panel wrap the field ("surround")** — for a `list` panel whose input
+sits inside a styled wrapper (pill, icon, submit button), the default placement
+anchors to the bare `<input>` and comes out narrower and indented. Turn on
+*Display → Surround the input*, set *Surround wrapper selector* to the wrapper
+(empty = closest `form`), and the panel matches its box exactly and starts flush
+at its bottom edge, dropping its top border/radius.
+
+The **theme draws the collar**, not the module: the panel is body-appended, so
+it cannot paint behind an input that lives in a stacking context (a sticky,
+z-indexed header region is the usual case — check for one before assuming
+z-index will help). The module's half is the alignment plus two hooks on the
+wrapper — `is-neo-search-open` while open, and `--neo-search-overhang` from the
+cushion setting. Theme rules that matter:
+- Reserve the cushion as real **padding** on the wrapper, not a negative-inset
+  overlay, or it covers whatever sits next to the field.
+- Draw the surface on an `absolute inset-0` layer *before* the field in tree
+  order, so the field paints over it without needing z-index.
+- If the wrapper is inside a scheme scope and the panel is not, reset the
+  collar's scope or `bg-default` resolves to two different colors.
+- The open class is toggled in `panel.open()`/`close()`, **not** off
+  `neo-search:open` — `showLoading()` opens the panel without dispatching that
+  event, so an event-driven collar would sit unstyled under a visible panel.
 
 **Group results into custom cards** — the variation's *Group overrides* table
 maps source keys (bundle ids when grouping by bundle) into named groups, with

@@ -288,6 +288,43 @@ class SearchSettings extends SettingsBase {
         ],
       ],
     ];
+    $form['display']['surround'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Surround the input'),
+      '#description' => $this->t('Align the dropdown to a wrapper around the input rather than to the input itself, and add the <code>is-neo-search-open</code> class to that wrapper while the panel is open. A theme styles the wrapper as a collar so the panel reads as one surface with the field. The panel is still appended to the body, so overflow-hidden ancestors stay harmless.'),
+      '#default_value' => $this->getValue('surround'),
+      '#states' => [
+        'visible' => [
+          ':input[name="' . $selector . '[display]"]' => ['value' => 'list'],
+        ],
+      ],
+    ];
+    $form['display']['surround_anchor'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Surround wrapper selector'),
+      '#description' => $this->t("CSS selector of the wrapper, resolved as the nearest matching <em>ancestor</em> of each bound input — unlike the cards anchor above, which is looked up document-wide. Leave empty to use the input's closest <code>form</code>."),
+      '#default_value' => $this->getValue('surround_anchor'),
+      '#states' => [
+        'visible' => [
+          ':input[name="' . $selector . '[display]"]' => ['value' => 'list'],
+          ':input[name="' . $selector . '[surround]"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
+    $form['display']['surround_overhang'] = [
+      '#type' => 'number',
+      '#title' => $this->t('Collar cushion (px)'),
+      '#min' => 0,
+      '#max' => 64,
+      '#description' => $this->t("Published to the wrapper as the <code>--neo-search-overhang</code> custom property. Placement measures the wrapper's real box, so this only exists to give the theme's collar padding a single source of truth."),
+      '#default_value' => $this->getValue('surround_overhang'),
+      '#states' => [
+        'visible' => [
+          ':input[name="' . $selector . '[display]"]' => ['value' => 'list'],
+          ':input[name="' . $selector . '[surround]"]' => ['checked' => TRUE],
+        ],
+      ],
+    ];
     $form['display']['min_chars'] = [
       '#type' => 'number',
       '#title' => $this->t('Minimum characters'),

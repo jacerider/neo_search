@@ -44,6 +44,9 @@ function neo_search_page_attachments(array &$attachments) {
       // component, so it never reaches drupalSettings.
       'display' => $settings->getValue('display'),
       'panelAnchor' => (string) $settings->getValue('panel_anchor'),
+      'surround' => (bool) $settings->getValue('surround'),
+      'surroundAnchor' => (string) $settings->getValue('surround_anchor'),
+      'surroundOverhang' => (int) $settings->getValue('surround_overhang'),
       'minChars' => (int) $settings->getValue('min_chars'),
       'maxChars' => (int) $settings->getValue('max_chars'),
       'debounce' => (int) $settings->getValue('debounce'),

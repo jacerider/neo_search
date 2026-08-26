@@ -34,6 +34,43 @@ export default class NeoSearchPanel {
     this.input = input;
     this.config = config;
     this.id = `neo-search-panel-${++NeoSearchPanel.counter}`;
+    if (this.isSurround()) {
+      // Published once, not per open: the collar reserves its cushion in
+      // layout, so a value that only appeared on open would shift the header.
+      this.resolveAnchor().style.setProperty(
+        '--neo-search-overhang',
+        `${this.config.surroundOverhang || 0}px`,
+      );
+    }
+  }
+
+  /**
+   * Whether the panel wraps a collar around the input rather than hanging off it.
+   *
+   * Cards is a full-width panel with its own anchor, so surround is list-only.
+   */
+  protected isSurround(): boolean {
+    return this.config.display === 'list' && !!this.config.surround;
+  }
+
+  /**
+   * The element the panel measures itself against.
+   *
+   * The two anchor settings resolve differently on purpose: the cards anchor is
+   * a page-level element (`header`), looked up document-wide, while a surround
+   * collar must be *this* input's own wrapper — several bound inputs can share
+   * one variation, and querySelector would hand them all the first match.
+   */
+  protected resolveAnchor(): HTMLElement {
+    if (this.config.display === 'cards') {
+      const anchor = this.config.panelAnchor
+        && document.querySelector<HTMLElement>(this.config.panelAnchor);
+      return anchor || this.input;
+    }
+    if (this.isSurround()) {
+      return this.input.closest<HTMLElement>(this.config.surroundAnchor || 'form') || this.input;
+    }
+    return this.input;
   }
 
   /**
@@ -45,6 +82,9 @@ export default class NeoSearchPanel {
     }
     const element = document.createElement('div');
     element.className = `neo-search-panel neo-search-panel--${this.config.display}`;
+    if (this.isSurround()) {
+      element.classList.add('neo-search-panel--surround');
+    }
     element.id = this.id;
     element.hidden = true;
     // Keep focus on the input while interacting with the panel; links still
@@ -188,6 +228,7 @@ export default class NeoSearchPanel {
     }
     element.hidden = false;
     this.isOpen = true;
+    this.setAnchorOpen(true);
     this.reposition();
     window.addEventListener('resize', this.onReposition, { passive: true });
     window.addEventListener('scroll', this.onReposition, { passive: true, capture: true });
@@ -202,8 +243,24 @@ export default class NeoSearchPanel {
     }
     this.element.hidden = true;
     this.isOpen = false;
+    this.setAnchorOpen(false);
     window.removeEventListener('resize', this.onReposition);
     window.removeEventListener('scroll', this.onReposition, { capture: true });
+  }
+
+  /**
+   * Marks the collar open so a theme can join it to the panel.
+   *
+   * Driven from open()/close() rather than the neo-search:open event, because
+   * showLoading() opens the panel directly without dispatching that event — a
+   * class hung off the event would miss the loading state and leave the collar
+   * unstyled under a visible panel.
+   */
+  protected setAnchorOpen(open: boolean): void {
+    if (!this.isSurround()) {
+      return;
+    }
+    this.resolveAnchor().classList.toggle('is-neo-search-open', open);
   }
 
   /**
@@ -217,13 +274,17 @@ export default class NeoSearchPanel {
     if (this.config.display === 'cards') {
       // Horizontal placement comes from the stylesheet (Drupal displacement
       // variables); only the vertical position is computed.
-      const anchor = (this.config.panelAnchor && document.querySelector(this.config.panelAnchor)) || this.input;
-      const rect = anchor.getBoundingClientRect();
+      const rect = this.resolveAnchor().getBoundingClientRect();
       element.style.top = `${rect.bottom + window.scrollY}px`;
       return;
     }
     const displace = this.getDisplaceOffsets();
-    const rect = this.input.getBoundingClientRect();
+    const surround = this.isSurround();
+    const rect = this.resolveAnchor().getBoundingClientRect();
+    // Surround has to line up with the collar's edges, so the width is exact
+    // rather than a floor the content may grow past. maxWidth still wins on a
+    // narrow viewport, which is why the clamp below stays in place.
+    element.style.width = surround ? `${rect.width}px` : '';
     element.style.minWidth = `${rect.width}px`;
     element.style.maxWidth = `${Math.max(280, window.innerWidth - displace.left - displace.right - 16)}px`;
     element.style.top = `${rect.bottom + window.scrollY}px`;
@@ -258,6 +319,13 @@ export default class NeoSearchPanel {
    */
   destroy(): void {
     this.close();
+    if (this.isSurround()) {
+      // close() short-circuits when the panel was never opened, so the collar
+      // is cleaned up here unconditionally rather than relying on it.
+      const anchor = this.resolveAnchor();
+      anchor.classList.remove('is-neo-search-open');
+      anchor.style.removeProperty('--neo-search-overhang');
+    }
     this.element?.remove();
     this.element = null;
     this.listbox = null;

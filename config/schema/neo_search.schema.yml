@@ -69,6 +69,15 @@ neo_search:
     panel_anchor:
       type: string
       label: 'Panel anchor selector'
+    surround:
+      type: boolean
+      label: 'Surround the input'
+    surround_anchor:
+      type: string
+      label: 'Surround wrapper selector'
+    surround_overhang:
+      type: integer
+      label: 'Collar cushion (px)'
     min_chars:
       type: integer
       label: 'Minimum characters'

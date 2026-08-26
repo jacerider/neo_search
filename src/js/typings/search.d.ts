@@ -33,6 +33,9 @@ declare namespace drupal {
         selectors: string[];
         display: 'list' | 'cards';
         panelAnchor: string;
+        surround: boolean;
+        surroundAnchor: string;
+        surroundOverhang: number;
         minChars: number;
         maxChars: number;
         debounce: number;

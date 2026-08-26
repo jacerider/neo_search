@@ -25,6 +25,14 @@
   @apply rounded-b-md;
 }
 
+/* Surround: the theme's collar draws the top/left/right of the box and stops at
+   the input's baseline, so the panel picks it up from there — no top border and
+   square top corners, or a seam shows where the two meet. The collar is
+   responsible for matching this border and radius on its own three sides. */
+.neo-search-panel--surround {
+  @apply rounded-t-none border-t-0;
+}
+
 .neo-search-panel--cards {
   @apply border-x-0;
   /* Full-width placement respects fixed UI (admin toolbar, off-canvas) via

@@ -129,3 +129,39 @@ function neo_search_update_10002(): string {
     ? sprintf('Merged component_entity into component for: %s.', implode(', ', $changed))
     : 'Removed the unused component_entity setting.';
 }
+
+/**
+ * Backfills the surround settings into the base config.
+ *
+ * Defaults live in config/install, which only seeds a fresh install — on an
+ * existing site the keys are simply absent and getValue() returns NULL. That
+ * matters for surround_overhang, where (int) NULL is 0 and would silently
+ * collapse the theme's collar cushion rather than fall back to 10.
+ *
+ * Base config only. Variations store just the keys a site actually overrode,
+ * and getValue() merges them over the base, so writing these there would turn
+ * an untouched default into an explicit per-variation override.
+ */
+function neo_search_update_10003(): string {
+  $config = \Drupal::configFactory()->getEditable('neo_search.settings');
+  $defaults = [
+    'surround' => FALSE,
+    'surround_anchor' => '',
+    'surround_overhang' => 10,
+  ];
+
+  $added = [];
+  foreach ($defaults as $key => $value) {
+    if ($config->get($key) === NULL) {
+      $config->set($key, $value);
+      $added[] = $key;
+    }
+  }
+  if ($added) {
+    $config->save();
+  }
+
+  return $added
+    ? sprintf('Added the surround settings: %s.', implode(', ', $added))
+    : 'The surround settings were already present.';
+}

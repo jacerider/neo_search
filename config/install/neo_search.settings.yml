@@ -10,6 +10,9 @@ display: list
 component: 'neo_search:search_quick'
 columns: 3
 panel_anchor: ''
+surround: false
+surround_anchor: ''
+surround_overhang: 10
 min_chars: 3
 max_chars: 128
 debounce: 200

@@ -32,6 +32,18 @@ export interface NeoSearchConfig {
   selectors: string[];
   display: 'list' | 'cards';
   panelAnchor: string;
+  /**
+   * List display: align the panel to a wrapper around the input.
+   *
+   * The panel matches the wrapper's box instead of the bare input's, and the
+   * wrapper carries `is-neo-search-open` while the panel shows, so a theme can
+   * style it as a collar. The panel stays body-appended either way.
+   */
+  surround: boolean;
+  /** Ancestor selector for the surround wrapper; '' means the closest form. */
+  surroundAnchor: string;
+  /** Published to the wrapper as --neo-search-overhang, for the theme's use. */
+  surroundOverhang: number;
   minChars: number;
   maxChars: number;
   debounce: number;
