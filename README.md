@@ -252,7 +252,10 @@ Two things to know:
   `href`. After injection the JS collects `[role="option"]` in document order,
   mints the ids, and drives them with the arrow keys. Break that and keyboard
   navigation breaks; nothing else is assumed.
-- **The rendered panel is cached**, so run `drush cr` after editing the twig.
+- **The rendered panel is cached** in the `neo_search` bin, tagged `rendered`.
+  A twig edit lands on the next cache clear: `drush cr`, `drush neo-cc`, or
+  automatically under the neo_build dev server, which runs neo-cc on twig
+  changes.
 
 An ejected copy is a fork: later improvements to the shipped component will not
 reach it. If the configured component goes missing the panel falls back to

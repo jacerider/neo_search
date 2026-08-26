@@ -149,8 +149,9 @@ version. Rules that matter:
   out of the component picker while staying renderable as SearchRunner's
   fallback. `neo:alchemist:validate` reports them as source templates; do not
   "fix" them to `neo: true` or every site gets two identical picker entries.
-- **Editing the twig needs `drush cr`** — the rendered panel is cached in the
-  `neo_search` bin.
+- **The rendered panel is cached** in the `neo_search` bin, tagged `rendered`,
+  so a twig edit needs a cache clear — `drush cr`, `drush neo-cc`, or none at
+  all under the neo_build dev server, which runs neo-cc on twig changes.
 - Only the chrome is still CSS: `.neo-search-panel*` in `src/css/search.css`
   (positioning, listbox host, loading overlay, spinner).
 - `{{ attributes }}` must stay on the single root element — it carries the
@@ -208,8 +209,9 @@ value the user has not just typed.
 - Per-item `rendered` HTML ships no asset libraries — view modes used there
   must not require bespoke JS. The same holds for the `search_quick` component:
   `#attached` is dropped, so it must declare no libraries of its own.
-- Twig edits not showing up → `drush cr` (the panel HTML is cached). New
-  classes not applying → `drush neo:build && npm run deploy`.
+- Twig edits not showing up → clear caches (the panel HTML is cached, tagged
+  `rendered`); under the dev server give the watcher's neo-cc a few seconds.
+  New classes not applying → `drush neo:build && npm run deploy`.
 - Keyboard navigation dead after a theme edit → the markup lost `role="option"`
   or `href` on its rows.
 - Rendering an SDC validates **every** module-provided component definition, so

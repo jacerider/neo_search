@@ -18,8 +18,9 @@
   elements and every class here are otherwise entirely yours.
 
   Own this file: `drush neo:search:eject search_quick` copies it into your theme.
-  Edits take effect after `drush cr` — the runner caches the rendered HTML in
-  the neo_search bin, so a template change alone will not show up.
+  The runner caches the rendered HTML in the neo_search bin, tagged `rendered`,
+  so an edit lands on the next cache clear — `drush cr`, `drush neo-cc`, or the
+  neo_build dev watcher, which runs neo-cc for you when a twig file changes.
 
   `excerpt` and `rendered` arrive pre-sanitized (Xss::filter down to
   mark/strong/em, and Drupal's render pipeline respectively) as Markup, so they

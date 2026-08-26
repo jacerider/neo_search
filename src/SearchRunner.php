@@ -172,7 +172,12 @@ class SearchRunner {
       ->merge(CacheableMetadata::createFromObject($resultsEvent))
       ->merge($settingsCacheability);
     $cacheability->addCacheContexts($contexts);
-    $cacheability->addCacheTags(['neo_search']);
+    // The envelope carries rendered markup, so it invalidates with everything
+    // else that does. Without `rendered` the entry outlives a template change:
+    // the neo_build dev watcher and `drush neo-cc` invalidate that tag but do
+    // not touch this bin, so an edited search_quick.twig kept serving stale
+    // HTML until a full `drush cr`.
+    $cacheability->addCacheTags(['neo_search', 'rendered']);
 
     if (!empty($values['render_items'])) {
       $this->renderItems($results, $request, $values, $cacheability);
