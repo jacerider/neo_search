@@ -3,7 +3,7 @@ type: module
 neo: true
 description: 'Configurable quick search / typeahead bound to text inputs.'
 package: Neo
-version: 1.0.2
+version: 1.0.3
 core_version_requirement: ^10.3 || ^11
 dependencies:
   - drupal:views
