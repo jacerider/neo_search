@@ -21,6 +21,6 @@
     "drupal/search_api": "^1",
     "jacerider/neo": "^1",
     "jacerider/neo_settings": "^1",
-    "jacerider/neo_alchemist": "^1"
+    "jacerider/neo_alchemist": "^1.2"
   }
 }

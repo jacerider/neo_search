@@ -75,24 +75,18 @@ function neo_search_themes_installed($theme_list) {
 /**
  * Repoints the base settings at the front theme's search_quick copy.
  *
- * Only ever upgrades the shipped default. A site builder who has chosen a
- * component — or a saved component — keeps their choice; this is what makes the
- * function safe to call from more than one hook.
+ * The claim sweeps, resolves the theme and only ever upgrades the shipped
+ * default: a site builder who has chosen a component — or a saved component —
+ * keeps their choice. That is what makes this safe to call from more than one
+ * hook, and three call sites do — hook_install(), hook_themes_installed() and
+ * the body of an update hook that has not run on every site.
  */
 function neo_search_claim_theme_component() {
   /** @var \Drupal\neo_alchemist\ThemeComponentInstaller $installer */
   $installer = \Drupal::service('neo_alchemist.theme_component_installer');
-  $installer->installAll();
-  $theme = $installer->resolveTheme();
-  if (!$theme) {
-    return;
-  }
-  $config = \Drupal::configFactory()->getEditable('neo_search.settings');
-  if ($config->get('component') !== SearchRunner::DEFAULT_COMPONENT) {
-    return;
-  }
-  $id = $theme . ':search_quick';
-  if (\Drupal::service('plugin.manager.sdc')->hasDefinition($id)) {
-    $config->set('component', $id)->save();
-  }
+  $installer->claimComponent(
+    SearchRunner::DEFAULT_COMPONENT,
+    'neo_search.settings',
+    'component',
+  );
 }
